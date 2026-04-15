@@ -7,6 +7,11 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Dark Mode: Class-based (tidak mengikuti OS/System Theme)
+   Ini adalah pengganti darkMode: 'class' dari Tailwind v3.
+   Selector dark: HANYA aktif jika <html> memiliki class .dark */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* 2. Variabel Branding & Komponen */
 @import "./variables";
 @import "./components/post";

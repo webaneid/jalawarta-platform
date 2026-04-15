@@ -53,6 +53,62 @@ const PLUGINS_TO_SEED = [
       },
     },
   },
+  {
+    id: "ai-insights",
+    name: "AI Content Insights",
+    description:
+      "Mesin pencari tren berita dan sosial media cerdas (Serper, RapidAPI, Firecrawl) yang otomatis membuat artikel langsung dari sumbernya.",
+    configSchema: {
+      type: "object",
+      properties: {
+        isEnabled: { type: "boolean", default: true },
+        preferredPlatforms: {
+          type: "array",
+          default: ["tiktok"],
+          items: { type: "string", enum: ["tiktok", "twitter", "google_trends"] },
+        },
+      },
+    },
+  },
+  {
+    id: "google-search-analytics",
+    name: "Google Search & Analytics",
+    description:
+      "Pelacakan pengunjung (GA4) dan verifikasi kepemilikan Google Search Console.",
+    configSchema: {
+      type: "object",
+      properties: {
+        gaMeasurementId: { type: "string", default: "", title: "GA4 Measurement ID (G-XXXXXXX)" },
+        gscVerificationCode: { type: "string", default: "", title: "GSC HTML Meta Verification Code" },
+      },
+    },
+  },
+  {
+    id: "meta-pixel",
+    name: "Meta Pixel Advanced",
+    description:
+      "Analisis konversi dan audience retargeting via Facebook (Meta) Pixel.",
+    configSchema: {
+      type: "object",
+      properties: {
+        pixelId: { type: "string", default: "", title: "Meta Pixel ID" },
+        enableAdvancedMatching: { type: "boolean", default: false },
+      },
+    },
+  },
+  {
+    id: "advanced-contact-form",
+    name: "Contact Form Advanced",
+    description:
+      "Formulir kontak dinamis dengan visual builder drag-and-drop dan manajemen pesan masuk.",
+    configSchema: {
+      type: "object",
+      properties: {
+        recipientEmail: { type: "string", default: "", title: "Email Penerima Notifikasi" },
+        enableSpamFilter: { type: "boolean", default: true },
+      },
+    },
+  },
 ];
 
 async function seedPlugins() {

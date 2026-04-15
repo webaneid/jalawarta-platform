@@ -28,3 +28,34 @@ export async function fetchTikTokTrends(query: string = "news") {
     throw error;
   }
 }
+
+export async function fetchTwitterTrends(query: string = "") {
+  // Simulasi / Placeholder untuk integrasi Twitter API via RapidAPI di masa depan
+  // Mengembalikan fake data agar UI tidak error.
+  return [
+    {
+      title: "Tren tagar #JalawartaViral",
+      author: { uniqueId: "twitter_user" },
+      share_url: "https://twitter.com/search?q=JalawartaViral",
+      statistics: { digg_count: 15000, share_count: 3000 }
+    },
+    {
+      title: "Diskusi tajam tentang regulasi Cyber",
+      author: { uniqueId: "tech_guru" },
+      share_url: "https://twitter.com/tech_guru/status/123",
+      statistics: { digg_count: 5000, share_count: 1200 }
+    }
+  ];
+}
+
+export async function fetchGoogleTrends(query: string = "") {
+  // Simulasi Google Trends via RapidAPI
+  return [
+    {
+      title: `Pencarian memuncak untuk: ${query || "Pemilu"}`,
+      author: { uniqueId: "google_trends" },
+      share_url: `https://trends.google.com/trends/explore?q=${query}`,
+      statistics: { digg_count: 50000, share_count: 0 }
+    }
+  ];
+}

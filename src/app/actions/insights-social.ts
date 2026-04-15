@@ -4,19 +4,23 @@ import { db } from "@/db";
 import { socialSearches, socialResults, contentStrategies } from "@/db/schema";
 import { getSession } from "@/lib/session";
 import { hasCapability } from "@/lib/auth/capabilities";
-import { fetchTikTokTrends } from "@/lib/insight-providers/rapidapi";
-import { desc, eq } from "drizzle-orm";
+import { fetchTikTokTrends, fetchTwitterTrends, fetchGoogleTrends } from "@/lib/insight-providers/rapidapi";
+import { and, desc, eq } from "drizzle-orm";
 
 export async function runSocialTrendSearch(keyword: string, platform: string = "tiktok") {
   const session = await getSession();
   if (!session?.tenantId || !hasCapability(session.role as any, "edit_posts")) throw new Error("Unauthorized");
 
-  // Panggil RapidAPI
+  // Panggil provider berdasarkan platform yang dipilih
   let rawResults: any[] = [];
   if (platform === "tiktok") {
     rawResults = await fetchTikTokTrends(keyword);
+  } else if (platform === "twitter") {
+    rawResults = await fetchTwitterTrends(keyword);
+  } else if (platform === "google_trends") {
+    rawResults = await fetchGoogleTrends(keyword);
   } else {
-    throw new Error(`Platform ${platform} not supported yet.`);
+    throw new Error(`Platform "${platform}" tidak dikenali. Pilih: tiktok, twitter, atau google_trends.`);
   }
 
   // Simpan record pencarian
@@ -60,6 +64,12 @@ export async function getSocialSearchHistory() {
 export async function createContentStrategy(searchId: string, strategyType: string, selectedTopicsIds: string[]) {
   const session = await getSession();
   if (!session?.tenantId || !hasCapability(session.role as any, "edit_posts")) throw new Error("Unauthorized");
+
+  // Verifikasi bahwa searchId memang ada dan milik tenant ini
+  const searchRecord = await db.query.socialSearches.findFirst({
+    where: and(eq(socialSearches.id, searchId), eq(socialSearches.tenantId, session.tenantId))
+  });
+  if (!searchRecord) throw new Error("Pencarian tidak valid atau tidak memiliki akses.");
 
   const expectedArticles = strategyType === "deep_dive_all" ? selectedTopicsIds.length : 1;
 
