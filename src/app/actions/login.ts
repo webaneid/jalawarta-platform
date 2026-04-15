@@ -25,7 +25,21 @@ export async function login(email: string, password: string) {
     return { error: "Email atau password salah." };
   }
 
-  // Ambil tenant
+  // [SP-01] Jika user adalah PLATFORM_ADMIN, tidak perlu tenant lookup
+  // Role disimpan di kolom users.role untuk admin platform-level
+  if (user.role === "PLATFORM_ADMIN") {
+    await createSession({
+      userId: user.id,
+      tenantId: null,
+      subdomain: null,
+      name: user.name,
+      email: user.email,
+      role: "PLATFORM_ADMIN",
+    });
+    return { success: true };
+  }
+
+  // Ambil tenant untuk user biasa (TENANT_OWNER / EDITOR / WRITER / SUBSCRIBER)
   const tenantResult = await db
     .select({ id: tenants.id, subdomain: tenants.subdomain, ownerId: tenants.ownerId })
     .from(tenants)
@@ -43,7 +57,7 @@ export async function login(email: string, password: string) {
 
   let role = memberResult[0]?.role || null;
   if (!role && tenant?.id) {
-    // Fallback: cek jika dia owner tenant (SUPER_ADMIN)
+    // Fallback: cek jika dia owner tenant
     if (tenant.ownerId === user.id) role = "SUPER_ADMIN";
   }
 

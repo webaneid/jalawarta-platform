@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { login } from "@/app/actions/login";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
-  const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
   const [isPending, startTransition] = useTransition();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,8 +21,9 @@ export default function LoginPage() {
       if (result?.error) {
         setError(result.error);
       } else {
-        router.push("/");
-        router.refresh();
+        // Gunakan window.location untuk navigasi penuh agar cookie terbaca lebih cepat
+        // dan callbackUrl dihormati lintas subdomain
+        window.location.href = callbackUrl;
       }
     });
   }
