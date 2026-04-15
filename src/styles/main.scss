@@ -1,0 +1,26 @@
+/* =========================================
+   JALA WARTA — Master Stylesheet
+   Arsitektur: Tailwind V4 + SCSS Custom
+   ========================================= */
+
+/* 1. Tailwind V4 Core + Plugins */
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* 2. Variabel Branding & Komponen */
+@import "./variables";
+@import "./components/post";
+
+/* 3. Global Base Styles */
+body {
+  background-color: var(--jw-bg);
+  color: var(--jw-text);
+  font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 4. Bridge CSS Variables → Tailwind V4 Theme Tokens */
+@theme inline {
+  --color-primary: var(--jw-primary);
+  --color-primary-hover: var(--jw-primary-hover);
+}

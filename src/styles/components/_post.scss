@@ -1,0 +1,32 @@
+/*
+  Custom CSS Khusus untuk Modul POST
+  (Bisa dioverride per tenant atau digunakan saat class utility Tailwind tidak cukup)
+*/
+.jw-post-content {
+  color: var(--jw-text);
+  line-height: 1.8;
+  
+  h1, h2, h3 {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    font-weight: 700;
+    color: var(--jw-primary); /* Ambil warna dari identitas tenant */
+  }
+
+  p {
+    margin-bottom: 1.25rem;
+  }
+
+  img {
+    border-radius: var(--jw-radius);
+    max-width: 100%;
+    margin: 2rem 0;
+  }
+
+  blockquote {
+    border-left: 4px solid var(--jw-primary);
+    padding-left: 1rem;
+    font-style: italic;
+    color: rgba(var(--jw-text), 0.8);
+  }
+}

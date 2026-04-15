@@ -1,0 +1,20 @@
+:root {
+  /* Default Branding Platform Jala Warta */
+  --jw-primary: #2563eb; /* blue-600 */
+  --jw-primary-hover: #1d4ed8;
+  --jw-bg: #f9fafb;
+  --jw-text: #111827;
+  --jw-radius: 0.75rem;
+}
+
+/* Contoh Dynamic Tenant Branding */
+[data-theme="tenant-merah"] {
+  --jw-primary: #dc2626; /* red-600 */
+  --jw-primary-hover: #b91c1c;
+}
+
+[data-theme="tenant-gelap"] {
+  --jw-bg: #111827;
+  --jw-text: #f9fafb;
+  --jw-primary: #10b981; /* emerald-500 */
+}
