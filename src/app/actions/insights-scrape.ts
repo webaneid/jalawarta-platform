@@ -42,19 +42,14 @@ export async function scrapeAndGenerateArticle(params: {
   // Step 2: Build context from scraped content
   const context = buildAIContext([scraped]);
 
-  // Step 3: Generate article with AI using scraped content as reference
-  // Use scraped title as topic context, but instruct AI to create its own fresh title
+  // Step 3: Generate article — topic is generic, AI derives its own title from referenceContent
   const result = await generateArticle({
-    topic: scraped.title || params.title,
+    topic: "artikel berita",
     referenceContent: context,
     tone: params.tone ?? "journalistic",
     length: params.length ?? "medium",
     language: params.language ?? "id",
     pov: params.pov ?? "neutral",
-    customInstruction:
-      "PENTING: Buat judul artikel yang BARU dan berbeda dari judul referensi asli. " +
-      "Tulis ulang konten dengan sudut pandang dan angle yang segar. " +
-      "Jangan salin judul asli secara kata per kata.",
   });
 
   if (!result.success) {
