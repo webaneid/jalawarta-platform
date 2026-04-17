@@ -37,7 +37,6 @@ export default function CompetitorClient({
   const [results, setResults] = useState<NewsResult[]>([]);
   const [activeSearch, setActiveSearch] = useState<{ domain: string; theme: string; timeRange: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
-  const [savingSource, setSavingSource] = useState(false);
   const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
 
   async function handleSearch(e: React.FormEvent) {
@@ -55,6 +54,14 @@ export default function CompetitorClient({
       setResults(res.results || []);
       setActiveSearch({ domain, theme: keyword, timeRange });
 
+      // Auto-save domain to watchlist if not already there
+      if (!watchlist.some((w) => w.domain === domain)) {
+        const saved = await addSourceToWatchlist(domain, domain);
+        if (saved.success && saved.entry) {
+          setWatchlist((prev) => [saved.entry as WatchlistEntry, ...prev]);
+        }
+      }
+
       // Prepend to local history
       const newEntry: HistoryItem = {
         id: crypto.randomUUID(),
@@ -69,20 +76,6 @@ export default function CompetitorClient({
       setErrorMsg(err.message || "Terjadi kesalahan.");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleSaveSource() {
-    const domain = source.trim().replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase();
-    if (!domain) return;
-    setSavingSource(true);
-    try {
-      const res = await addSourceToWatchlist(domain, domain);
-      if (res.success && res.entry) {
-        setWatchlist((prev) => [res.entry as WatchlistEntry, ...prev]);
-      }
-    } finally {
-      setSavingSource(false);
     }
   }
 
@@ -116,10 +109,6 @@ export default function CompetitorClient({
     setKeyword(item.theme ?? "");
     setTimeRange(item.timeRange ?? "w");
   }
-
-  const isSourceSaved = watchlist.some(
-    (w) => w.domain === source.trim().replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase()
-  );
 
   return (
     <div className="space-y-6">
@@ -186,17 +175,6 @@ export default function CompetitorClient({
           </button>
         </div>
 
-        {/* Save source shortcut */}
-        {source.trim() && !isSourceSaved && (
-          <button
-            type="button"
-            onClick={handleSaveSource}
-            disabled={savingSource}
-            className="text-xs text-blue-600 hover:underline disabled:opacity-50"
-          >
-            {savingSource ? "Menyimpan..." : `+ Simpan "${source.trim().replace(/^https?:\/\//, "")}" ke daftar sumber`}
-          </button>
-        )}
       </form>
 
       {errorMsg && (
