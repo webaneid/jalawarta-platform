@@ -123,16 +123,13 @@ export default function UniversalEditor({
     const draftHtml = sessionStorage.getItem("insight_ai_draft");
     if (!draftHtml) return;
     sessionStorage.removeItem("insight_ai_draft");
-
-    let htmlString = draftHtml;
-    const h1Match = htmlString.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-    if (h1Match) {
-      const extractedTitle = h1Match[1].replace(/<[^>]*>?/gm, "").trim();
-      setTitle(extractedTitle);
-      if (!slugManuallyEdited) setSlug(autoSlug(extractedTitle));
-      htmlString = htmlString.replace(h1Match[0], "").trim();
-    }
-    editor.commands.setContent(htmlString, { emitUpdate: true });
+    // Dispatch lewat event yang sudah terbukti bekerja di AiGenerateModal
+    // setTimeout memastikan listener ai:insert-content sudah terdaftar
+    setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("ai:insert-content", { detail: { markdown: draftHtml } })
+      );
+    }, 0);
   }, [editor]);
 
   function autoSlug(val: string) {
