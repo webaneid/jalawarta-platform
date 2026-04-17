@@ -65,9 +65,7 @@ export async function scrapeAndGenerateArticle(params: {
 
   // Extract <h1> title and body on the server — more reliable than client-side regex
   const h1Match = rawHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  const aiTitle = h1Match
-    ? h1Match[1].replace(/<[^>]*>?/gm, "").trim()
-    : scraped.title;
+  const aiTitle = h1Match ? h1Match[1].replace(/<[^>]*>?/gm, "").trim() : "";
   const bodyHtml = h1Match ? rawHtml.replace(h1Match[0], "").trim() : rawHtml;
 
   return {
