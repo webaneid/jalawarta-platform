@@ -117,6 +117,24 @@ export default function UniversalEditor({
     return () => window.removeEventListener("ai:insert-content", handleAiInsert);
   }, [editor, slugManuallyEdited]);
 
+  // Baca draft dari Insight News / Kompetitor Monitor (disimpan via sessionStorage)
+  useEffect(() => {
+    if (!editor) return;
+    const draftHtml = sessionStorage.getItem("insight_ai_draft");
+    if (!draftHtml) return;
+    sessionStorage.removeItem("insight_ai_draft");
+
+    let htmlString = draftHtml;
+    const h1Match = htmlString.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    if (h1Match) {
+      const extractedTitle = h1Match[1].replace(/<[^>]*>?/gm, "").trim();
+      setTitle(extractedTitle);
+      if (!slugManuallyEdited) setSlug(autoSlug(extractedTitle));
+      htmlString = htmlString.replace(h1Match[0], "").trim();
+    }
+    editor.commands.setContent(htmlString, { emitUpdate: true });
+  }, [editor]);
+
   function autoSlug(val: string) {
     return val.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "").slice(0, 100);
   }

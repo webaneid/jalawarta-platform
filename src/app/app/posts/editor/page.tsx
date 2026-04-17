@@ -8,6 +8,7 @@ import { getCategories } from "@/app/actions/categories";
 import { getTags } from "@/app/actions/tags";
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
+import { DEFAULT_MODELS, PROVIDERS_MODELS } from "@/lib/ai-generator/providers";
 
 export default async function PostEditorPage({
   searchParams,
@@ -75,7 +76,11 @@ export default async function PostEditorPage({
         templates: config.templates ?? [],
         availableProviders,           // ← hanya dari Vault
         preferredProvider: preferred,
-        preferredModel: config.preferredModel ?? "gemini-1.5-pro",
+        preferredModel: (() => {
+          const validModels = PROVIDERS_MODELS[preferred]?.models.map((m) => m.id) ?? [];
+          const saved = config.preferredModel;
+          return saved && validModels.includes(saved) ? saved : (DEFAULT_MODELS[preferred] ?? "gemini-2.5-flash");
+        })(),
         defaultLanguage: config.defaultLanguage ?? "id",
         defaultTone: config.defaultTone ?? "professional",
       };

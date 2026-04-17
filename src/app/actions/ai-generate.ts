@@ -5,10 +5,17 @@ import { tenantPlugins, users, tenants, apiCredentials } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { getDecryptedCredential } from "@/app/actions/apikeys";
-import { generateFromProvider, tokensToCreditCost } from "@/lib/ai-generator/providers";
+import { generateFromProvider, tokensToCreditCost, DEFAULT_MODELS, PROVIDERS_MODELS } from "@/lib/ai-generator/providers";
 import { revalidatePath } from "next/cache";
 
 const PLUGIN_ID = "ai-article-generator";
+
+// Validasi model — jika model tidak ada di daftar valid provider, pakai default terbaru
+function resolveModel(provider: string, savedModel?: string): string {
+  const validModels = PROVIDERS_MODELS[provider]?.models.map((m) => m.id) ?? [];
+  if (savedModel && validModels.includes(savedModel)) return savedModel;
+  return DEFAULT_MODELS[provider] ?? "gemini-2.5-flash";
+}
 
 // ── Tone → System Prompt map ──────────────────────────────────────────────────
 const TONE_INSTRUCTIONS: Record<string, string> = {
@@ -48,7 +55,7 @@ export async function getPluginConfig(tenantId: string) {
     aiCreditsLimit: config.aiCreditsLimit ?? 20,
     aiCreditsUsed: config.aiCreditsUsed ?? 0,
     preferredProvider: config.preferredProvider ?? "gemini",
-    preferredModel: config.preferredModel ?? "gemini-1.5-pro",
+    preferredModel: resolveModel(config.preferredProvider ?? "gemini", config.preferredModel),
     defaultLanguage: config.defaultLanguage ?? "id",
     defaultTone: config.defaultTone ?? "professional",
     templates: config.templates ?? [],

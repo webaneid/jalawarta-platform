@@ -7,6 +7,7 @@ import {
   searchNewsBySource,
   saveAsInsight,
 } from "@/app/actions/insights-news";
+import { scrapeAndGenerateArticle } from "@/app/actions/insights-scrape";
 
 type WatchlistEntry = { id: string; name: string; domain: string };
 type NewsResult = { title: string; url: string; snippet?: string | null; publishDate?: string | null };
@@ -38,6 +39,7 @@ export default function CompetitorClient({
   const [activeSearch, setActiveSearch] = useState<{ domain: string; theme: string; timeRange: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
+  const [generatingUrl, setGeneratingUrl] = useState<string | null>(null);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -83,6 +85,19 @@ export default function CompetitorClient({
     e.stopPropagation();
     await removeSourceFromWatchlist(id);
     setWatchlist((prev) => prev.filter((w) => w.id !== id));
+  }
+
+  async function handleGenerateArticle(url: string, title: string) {
+    setGeneratingUrl(url);
+    try {
+      const res = await scrapeAndGenerateArticle({ url, title });
+      if (!res.success) throw new Error("Gagal generate artikel.");
+      sessionStorage.setItem("insight_ai_draft", res.html);
+      window.location.href = "/posts/editor";
+    } catch (err: any) {
+      alert(err.message || "Gagal membuat artikel.");
+      setGeneratingUrl(null);
+    }
   }
 
   async function handleSaveInsight(title: string, url: string) {
@@ -205,7 +220,24 @@ export default function CompetitorClient({
                   <p className="text-sm text-gray-500 mt-2 line-clamp-3">{item.snippet}</p>
                   <p className="text-xs text-gray-400 mt-2">{item.publishDate || "Tanggal tidak diketahui"}</p>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 text-right">
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => handleGenerateArticle(item.url ?? "", item.title ?? "")}
+                    disabled={generatingUrl === item.url}
+                    className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium px-3 py-1.5 rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {generatingUrl === item.url ? (
+                      <>
+                        <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                        Memproses...
+                      </>
+                    ) : (
+                      "Buat Artikel"
+                    )}
+                  </button>
                   <button
                     id={`cbtn-${item.url}`}
                     onClick={() => handleSaveInsight(item.title, item.url)}

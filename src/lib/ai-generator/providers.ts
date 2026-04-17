@@ -34,7 +34,7 @@ export const PROVIDERS_MODELS: Record<string, { label: string; models: { id: str
 };
 
 // Default fallback model per provider — diambil dari model pertama PROVIDERS_MODELS
-const DEFAULT_MODELS: Record<string, string> = Object.fromEntries(
+export const DEFAULT_MODELS: Record<string, string> = Object.fromEntries(
   Object.entries(PROVIDERS_MODELS).map(([key, val]) => [key, val.models[0].id])
 );
 
