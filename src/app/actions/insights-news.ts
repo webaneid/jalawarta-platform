@@ -144,5 +144,15 @@ export async function searchNewsBySource(domain: string, query: string = "", tim
     await db.insert(newsResults).values(resultsToInsert);
   }
 
-  return { success: true, results: rawResults };
+  // Return in DB format so the client can display immediately and from history consistently
+  type MappedResult = { title: string; url: string; snippet: string; publishDate: string };
+  return {
+    success: true,
+    results: resultsToInsert.map((item: any): MappedResult => ({
+      title: item.title,
+      url: item.url,
+      snippet: item.snippet,
+      publishDate: item.publishDate,
+    })),
+  };
 }
