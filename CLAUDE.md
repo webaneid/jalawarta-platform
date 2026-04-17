@@ -34,6 +34,7 @@ Selalu baca dokumen arsitektur relevan **sebelum** mengimplementasikan atau meng
 | [`19-arsitektur-github.md`](./docs/19-arsitektur-github.md) | GitHub integration |
 | [`20-arsitektur-deploy.md`](./docs/20-arsitektur-deploy.md) | Deployment architecture |
 | [`21-arsitektur-platform-implementasi.md`](./docs/21-arsitektur-platform-implementasi.md) | **WAJIB BACA** — Implementasi aktual platform: status fitur, skema DB, gap, learning log |
+| [`22-arsitektur-addon-standar.md`](./docs/22-arsitektur-addon-standar.md) | **WAJIB BACA** — Blueprint standar membangun add-on baru (Inject & Feature), checklist lengkap |
 
 ---
 
