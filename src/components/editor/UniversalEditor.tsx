@@ -120,15 +120,20 @@ export default function UniversalEditor({
   useEffect(() => {
     if (!editor) return;
     const draftHtml = sessionStorage.getItem("insight_ai_draft");
+    const draftTitle = sessionStorage.getItem("insight_ai_title");
     if (!draftHtml) return;
+
     sessionStorage.removeItem("insight_ai_draft");
-    // Dispatch lewat event yang sudah terbukti bekerja di AiGenerateModal
-    // setTimeout memastikan listener ai:insert-content sudah terdaftar
-    setTimeout(() => {
-      window.dispatchEvent(
-        new CustomEvent("ai:insert-content", { detail: { markdown: draftHtml } })
-      );
-    }, 0);
+    sessionStorage.removeItem("insight_ai_title");
+
+    // Set judul langsung (sudah diekstrak server-side, tanpa <h1>)
+    if (draftTitle) {
+      setTitle(draftTitle);
+      if (!slugManuallyEdited) setSlug(autoSlug(draftTitle));
+    }
+
+    // Set body content langsung ke editor (body sudah tanpa <h1>)
+    editor.chain().setContent(draftHtml).run();
   }, [editor]);
 
   function autoSlug(val: string) {

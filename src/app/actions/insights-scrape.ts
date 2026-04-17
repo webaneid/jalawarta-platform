@@ -61,9 +61,19 @@ export async function scrapeAndGenerateArticle(params: {
     throw new Error(result.error ?? "Gagal generate artikel.");
   }
 
+  const rawHtml = result.text as string;
+
+  // Extract <h1> title and body on the server — more reliable than client-side regex
+  const h1Match = rawHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  const aiTitle = h1Match
+    ? h1Match[1].replace(/<[^>]*>?/gm, "").trim()
+    : scraped.title;
+  const bodyHtml = h1Match ? rawHtml.replace(h1Match[0], "").trim() : rawHtml;
+
   return {
     success: true as const,
-    html: result.text as string,
+    html: bodyHtml,   // body WITHOUT <h1>
+    title: aiTitle,   // AI-generated title (extracted from <h1>)
     sourceTitle: scraped.title,
     sourceUrl: scraped.sourceUrl,
     tokensUsed: result.tokensUsed,

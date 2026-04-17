@@ -93,6 +93,7 @@ export default function CompetitorClient({
       const res = await scrapeAndGenerateArticle({ url, title });
       if (!res.success) throw new Error("Gagal generate artikel.");
       sessionStorage.setItem("insight_ai_draft", res.html);
+      sessionStorage.setItem("insight_ai_title", res.title);
       window.location.href = "/posts/editor";
     } catch (err: any) {
       alert(err.message || "Gagal membuat artikel.");
