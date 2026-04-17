@@ -314,6 +314,16 @@ export const newsSearches = pgTable("news_searches", {
   language: text("language"),
   country: text("country"),
   resultsCount: integer("results_count").default(0),
+  searchType: text("search_type").default("keyword"), // keyword | competitor
+  sourceDomain: text("source_domain"), // e.g. tempo.co (only for competitor searches)
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const newsSourceWatchlists = pgTable("news_source_watchlists", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g. "Tempo.co"
+  domain: text("domain").notNull(), // e.g. "tempo.co"
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -470,6 +480,10 @@ export const insightsRelations = relations(insights, ({ one }) => ({
 export const newsSearchesRelations = relations(newsSearches, ({ one, many }) => ({
   tenant: one(tenants, { fields: [newsSearches.tenantId], references: [tenants.id] }),
   results: many(newsResults),
+}));
+
+export const newsSourceWatchlistsRelations = relations(newsSourceWatchlists, ({ one }) => ({
+  tenant: one(tenants, { fields: [newsSourceWatchlists.tenantId], references: [tenants.id] }),
 }));
 
 export const newsResultsRelations = relations(newsResults, ({ one }) => ({

@@ -56,6 +56,7 @@ const NAV: NavItem[] = [
       { label: "Saved Insights", href: "/insights" },
       { label: "News Insight", href: "/insights/news" },
       { label: "Social Insight", href: "/insights/social" },
+      { label: "Kompetitor Monitor", href: "/insights/competitor" },
     ],
   },
   {

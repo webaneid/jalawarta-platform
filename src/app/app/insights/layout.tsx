@@ -41,6 +41,12 @@ export default async function InsightsLayout({ children }: { children: React.Rea
           >
             Social Trends
           </Link>
+          <Link
+            href="/insights/competitor"
+            className="px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
+          >
+            Kompetitor Monitor
+          </Link>
         </div>
       </div>
 
