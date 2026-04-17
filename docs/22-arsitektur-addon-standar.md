@@ -411,4 +411,29 @@ Gunakan checklist ini sebelum menganggap add-on selesai:
 
 ---
 
+## 11. Status Implementasi ai-insights (Audit 17 Apr 2026)
+
+Audit menyeluruh dilakukan terhadap `ai-insights` sebagai studi kasus penerapan standar ini. Berikut gap yang ditemukan dan resolusinya:
+
+| Gap | Prioritas | Status |
+|---|---|---|
+| Tidak ada plugin guard di `/app/insights/layout.tsx` — akses tanpa plugin ACTIVE | P0 | ✅ Fixed |
+| Tidak ada halaman settings tenant `/app/addons/ai-insights/` — link "Manage Settings" 404 | P1 | ✅ Fixed |
+| Sidebar Insights hardcoded — muncul meski plugin INACTIVE | P2 | ✅ Fixed |
+| Tidak ada platform monitoring page `/platform/addons/ai-insights/` | P3 | ✅ Fixed |
+| `ai-insights` tidak terdaftar di `src/lib/plugins/registry.ts` | P4 | ✅ Fixed |
+
+**File yang dibuat/diubah:**
+- `src/app/app/insights/layout.tsx` — tambah guard: cek `ai-insights` ACTIVE, redirect ke `/addons` jika tidak
+- `src/app/app/addons/ai-insights/page.tsx` — halaman settings tenant (Server Component)
+- `src/app/app/addons/ai-insights/AiInsightsSettingsForm.tsx` — form config: `isEnabled` + `preferredPlatforms`
+- `src/app/app/layout.tsx` — fetch `activeAddonIds`, pass ke `SidebarNav`
+- `src/components/SidebarNav.tsx` — terima prop `activeAddonIds`, sembunyikan menu Insights jika `ai-insights` tidak aktif
+- `src/app/platform/addons/ai-insights/page.tsx` — monitoring global: tabel tenant + status + platform riset
+- `src/lib/plugins/registry.ts` — tambah entry `ai-insights` (Feature, no public slot)
+
+**Verifikasi:** `bunx tsc --noEmit` → 0 error
+
+---
+
 *Terakhir diperbarui: 17 April 2026 | Dokumen ini wajib diperbarui setiap kali pola add-on berevolusi*
