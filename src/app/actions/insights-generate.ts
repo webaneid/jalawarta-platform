@@ -53,7 +53,7 @@ export async function dispatchInsightGeneration(insightId: string, customInstruc
       authorId: session!.userId!,
       slug: `${slugify(articleTitle)}-${Date.now()}`,
       title: { id: articleTitle, en: "" },
-      content: { id: result.text, en: "" },
+      content: { html: result.text } as any,
       status: "DRAFT",
     }).returning();
 
@@ -111,7 +111,7 @@ export async function dispatchStrategyGeneration(strategyId: string, customInstr
         authorId: session.userId!,
         slug: `${slugify(`roundup-tren-viral-${records[0]?.content?.substring(0, 30) || 'terbaru'}`)}-${Date.now()}`,
         title: { id: `Kumpulan Tren Viral: ${records[0]?.content?.substring(0, 30) || 'Terbaru'}...`, en: "" },
-        content: { id: result.text, en: "" },
+        content: { html: result.text } as any,
         status: "DRAFT",
       });
       
@@ -133,7 +133,7 @@ export async function dispatchStrategyGeneration(strategyId: string, customInstr
              authorId: session.userId!,
              slug: `${slugify(`bedah-tuntas-${r.content?.substring(0, 40) || 'tren-sosmed'}`)}-${r.id.substring(0, 6)}`,
              title: { id: `Bedah Tuntas: ${r.content?.substring(0, 40) || 'Tren Sosmed'}...`, en: "" },
-             content: { id: result.text, en: "" },
+             content: { html: result.text } as any,
              status: "DRAFT",
            });
          }

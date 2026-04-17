@@ -38,7 +38,6 @@ export async function scrapeAndGenerateArticle(params: {
 
   // Step 1: Scrape article content
   const scraped = await scrapeArticle(params.url);
-  console.log("[insights-scrape] scraped:", scraped.sourceUrl, "| chars:", scraped.content.length, "| title:", scraped.title);
 
   // Step 2: Build context from scraped content
   const context = buildAIContext([scraped]);
@@ -56,7 +55,6 @@ export async function scrapeAndGenerateArticle(params: {
   if (!result.success) {
     throw new Error(result.error ?? "Gagal generate artikel.");
   }
-  console.log("[insights-scrape] AI result chars:", result.text?.length ?? 0);
 
   return {
     success: true as const,

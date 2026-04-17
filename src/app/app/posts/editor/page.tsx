@@ -107,7 +107,18 @@ export default async function PostEditorPage({
         defaultTitle={(existingPost?.title as any)?.id || ""}
         defaultSlug={existingPost?.slug || ""}
         defaultFeaturedImage={existingPost?.featuredImage || undefined}
-        defaultContent={(existingPost?.content as object) || undefined}
+        defaultContent={(() => {
+          const raw = existingPost?.content as any;
+          if (!raw) return undefined;
+          // Valid Tiptap JSON — pass as-is
+          if (raw.type === "doc") return raw;
+          // { html: string } format from insights auto-generation
+          if (typeof raw.html === "string") return raw.html as any;
+          // Legacy multilingual format { id: htmlString, en: '' } — extract HTML string
+          // Tiptap accepts HTML strings directly and will parse them correctly
+          if (typeof raw.id === "string") return raw.id as any;
+          return raw;
+        })()}
         allCategories={allCategories}
         allTags={allTags}
         defaultCategoryIds={selectedCategoryIds}

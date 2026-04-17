@@ -107,9 +107,8 @@ export default function UniversalEditor({
       }
 
       // 3. Masukkan sisa HTML konten ke Tiptap
-      if (editor) {
-         // Hapus konten bawaan (e.g. h2 mulai menulis), timpa dengan AI
-         editor.commands.setContent(htmlString, { emitUpdate: true });
+      if (editor && htmlString) {
+        editor.chain().setContent(htmlString).run();
       }
     };
 
