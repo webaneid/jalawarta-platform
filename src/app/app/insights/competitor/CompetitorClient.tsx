@@ -1,244 +1,282 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { addSourceToWatchlist, removeSourceFromWatchlist, searchNewsBySource } from "@/app/actions/insights-news";
+import { useState } from "react";
+import {
+  addSourceToWatchlist,
+  removeSourceFromWatchlist,
+  searchNewsBySource,
+  saveAsInsight,
+} from "@/app/actions/insights-news";
 
-type WatchlistEntry = {
-  id: string;
-  name: string;
-  domain: string;
-  createdAt: Date | null;
-};
+type WatchlistEntry = { id: string; name: string; domain: string };
+type NewsResult = { title: string; url: string; snippet?: string | null; publishDate?: string | null };
+type HistoryItem = { id: string; sourceDomain?: string | null; theme?: string | null; timeRange?: string | null; createdAt: Date | null; results: NewsResult[] };
 
-type NewsResult = {
-  title: string;
-  link: string;
-  snippet: string;
-  date: string;
-  source: string;
-  imageUrl?: string;
-};
-
-const TIME_RANGE_OPTIONS = [
+const TIME_OPTIONS = [
   { label: "1 Jam Terakhir", value: "h" },
-  { label: "1 Hari Terakhir", value: "d" },
+  { label: "24 Jam Terakhir", value: "d" },
   { label: "1 Minggu Terakhir", value: "w" },
   { label: "1 Bulan Terakhir", value: "m" },
-  { label: "Semua Waktu", value: "all" },
+  { label: "Kapanpun", value: "all" },
 ];
 
-export default function CompetitorClient({ initialWatchlist }: { initialWatchlist: WatchlistEntry[] }) {
+export default function CompetitorClient({
+  initialWatchlist,
+  initialHistory,
+}: {
+  initialWatchlist: WatchlistEntry[];
+  initialHistory: HistoryItem[];
+}) {
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>(initialWatchlist);
-  const [results, setResults] = useState<NewsResult[]>([]);
-  const [activeDomain, setActiveDomain] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  const [timeRange, setTimeRange] = useState("w");
-  const [newName, setNewName] = useState("");
-  const [newDomain, setNewDomain] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
 
-  function handleAddSource() {
-    if (!newName.trim() || !newDomain.trim()) return;
-    setError(null);
-    startTransition(async () => {
-      const res = await addSourceToWatchlist(newName, newDomain);
+  const [source, setSource] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [timeRange, setTimeRange] = useState("w");
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<NewsResult[]>([]);
+  const [activeSearch, setActiveSearch] = useState<{ domain: string; theme: string; timeRange: string } | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [savingSource, setSavingSource] = useState(false);
+  const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const domain = source.trim().replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase();
+    if (!domain) return;
+
+    setLoading(true);
+    setErrorMsg("");
+    setResults([]);
+    setActiveHistoryId(null);
+
+    try {
+      const res = await searchNewsBySource(domain, keyword, timeRange);
+      setResults(res.results || []);
+      setActiveSearch({ domain, theme: keyword, timeRange });
+
+      // Prepend to local history
+      const newEntry: HistoryItem = {
+        id: crypto.randomUUID(),
+        sourceDomain: domain,
+        theme: keyword || null,
+        timeRange,
+        createdAt: new Date(),
+        results: res.results || [],
+      };
+      setHistory((prev) => [newEntry, ...prev].slice(0, 20));
+    } catch (err: any) {
+      setErrorMsg(err.message || "Terjadi kesalahan.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSaveSource() {
+    const domain = source.trim().replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase();
+    if (!domain) return;
+    setSavingSource(true);
+    try {
+      const res = await addSourceToWatchlist(domain, domain);
       if (res.success && res.entry) {
         setWatchlist((prev) => [res.entry as WatchlistEntry, ...prev]);
-        setNewName("");
-        setNewDomain("");
       }
-    });
+    } finally {
+      setSavingSource(false);
+    }
   }
 
-  function handleRemoveSource(id: string) {
-    startTransition(async () => {
-      await removeSourceFromWatchlist(id);
-      setWatchlist((prev) => prev.filter((e) => e.id !== id));
-      if (activeDomain && watchlist.find((e) => e.id === id)?.domain === activeDomain) {
-        setActiveDomain(null);
-        setResults([]);
-      }
-    });
+  async function handleRemoveSource(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    await removeSourceFromWatchlist(id);
+    setWatchlist((prev) => prev.filter((w) => w.id !== id));
   }
 
-  function handleSearch(domain: string) {
-    setActiveDomain(domain);
-    setError(null);
-    startTransition(async () => {
-      try {
-        const res = await searchNewsBySource(domain, query, timeRange);
-        setResults(res.results || []);
-      } catch (err: any) {
-        setError(err.message);
-        setResults([]);
+  async function handleSaveInsight(title: string, url: string) {
+    const btn = document.getElementById(`cbtn-${url}`);
+    if (btn) btn.innerText = "Menyimpan...";
+    try {
+      await saveAsInsight(title, url);
+      if (btn) {
+        btn.innerText = "Tersimpan";
+        btn.setAttribute("disabled", "true");
+        btn.classList.add("opacity-50");
       }
-    });
+    } catch (err: any) {
+      alert(err.message);
+      if (btn) btn.innerText = "Save Insight";
+    }
   }
+
+  function loadFromHistory(item: HistoryItem) {
+    setResults(item.results);
+    setActiveHistoryId(item.id);
+    setActiveSearch({ domain: item.sourceDomain ?? "", theme: item.theme ?? "", timeRange: item.timeRange ?? "w" });
+    setSource(item.sourceDomain ?? "");
+    setKeyword(item.theme ?? "");
+    setTimeRange(item.timeRange ?? "w");
+  }
+
+  const isSourceSaved = watchlist.some(
+    (w) => w.domain === source.trim().replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase()
+  );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Left: Watchlist Panel */}
-      <div className="lg:col-span-1 space-y-4">
-        <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Tambah Sumber Berita</h2>
-          <div className="space-y-2">
+    <div className="space-y-6">
+      {/* Search Form */}
+      <form onSubmit={handleSearch} className="space-y-3">
+        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+          <div className="relative flex-1 min-w-0">
             <input
               type="text"
-              placeholder="Nama (e.g. Tempo.co)"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Sumber berita (contoh: antaranews.com)"
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
             />
-            <input
-              type="text"
-              placeholder="Domain (e.g. tempo.co)"
-              value={newDomain}
-              onChange={(e) => setNewDomain(e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              onClick={handleAddSource}
-              disabled={isPending || !newName.trim() || !newDomain.trim()}
-              className="w-full py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isPending ? "Menyimpan..." : "Tambah Sumber"}
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-            Daftar Sumber ({watchlist.length})
-          </h2>
-          {watchlist.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-4">Belum ada sumber berita.</p>
-          ) : (
-            <ul className="space-y-2">
-              {watchlist.map((entry) => (
-                <li
-                  key={entry.id}
-                  className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                    activeDomain === entry.domain
-                      ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20"
-                      : "border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900"
-                  }`}
-                  onClick={() => handleSearch(entry.domain)}
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{entry.name}</p>
-                    <p className="text-xs text-gray-400">{entry.domain}</p>
-                  </div>
+            {/* Watchlist suggestions */}
+            {watchlist.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {watchlist.map((w) => (
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleRemoveSource(entry.id); }}
-                    disabled={isPending}
-                    className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-30"
-                    title="Hapus"
+                    key={w.id}
+                    type="button"
+                    onClick={() => setSource(w.domain)}
+                    className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                      source === w.domain
+                        ? "bg-blue-100 border-blue-400 text-blue-700 dark:bg-blue-900/40 dark:border-blue-600 dark:text-blue-300"
+                        : "bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400"
+                    }`}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    {w.domain}
+                    <span
+                      onClick={(e) => handleRemoveSource(w.id, e)}
+                      className="text-gray-400 hover:text-red-500 ml-0.5 cursor-pointer"
+                    >×</span>
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      {/* Right: Search + Results */}
-      <div className="lg:col-span-2 space-y-4">
-        <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Filter Pencarian</h2>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="text"
-              placeholder="Kata kunci (opsional)"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {TIME_RANGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+                ))}
+              </div>
+            )}
           </div>
-          {activeDomain && (
-            <button
-              onClick={() => handleSearch(activeDomain)}
-              disabled={isPending}
-              className="mt-2 w-full py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isPending ? "Mencari..." : `Cari di ${activeDomain}`}
-            </button>
-          )}
-          {!activeDomain && (
-            <p className="mt-2 text-xs text-gray-400 text-center">Pilih sumber dari daftar kiri untuk mulai mencari.</p>
-          )}
         </div>
 
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Kata kunci (opsional)"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+          />
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+          >
+            {TIME_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            disabled={loading || !source.trim()}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors disabled:opacity-50"
+          >
+            {loading ? "Mencari..." : "Cari"}
+          </button>
+        </div>
 
-        {isPending && (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-          </div>
+        {/* Save source shortcut */}
+        {source.trim() && !isSourceSaved && (
+          <button
+            type="button"
+            onClick={handleSaveSource}
+            disabled={savingSource}
+            className="text-xs text-blue-600 hover:underline disabled:opacity-50"
+          >
+            {savingSource ? "Menyimpan..." : `+ Simpan "${source.trim().replace(/^https?:\/\//, "")}" ke daftar sumber`}
+          </button>
         )}
+      </form>
 
-        {!isPending && results.length > 0 && (
-          <div className="space-y-3">
-            <p className="text-xs text-gray-500">{results.length} artikel ditemukan dari <strong>{activeDomain}</strong></p>
-            {results.map((item, idx) => (
-              <div
-                key={idx}
-                className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 p-4 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
-              >
-                <div className="flex gap-3">
-                  {item.imageUrl && (
-                    <img
-                      src={item.imageUrl}
-                      alt=""
-                      className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <a
-                      href={item.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 line-clamp-2"
-                    >
-                      {item.title}
-                    </a>
-                    {item.snippet && (
-                      <p className="mt-1 text-xs text-gray-500 line-clamp-2">{item.snippet}</p>
-                    )}
-                    <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
-                      {item.source && <span>{item.source}</span>}
-                      {item.date && <><span>·</span><span>{item.date}</span></>}
-                    </div>
-                  </div>
+      {errorMsg && (
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-md text-sm">
+          {errorMsg}
+        </div>
+      )}
+
+      {/* Results */}
+      {results.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="font-medium text-gray-900 dark:text-gray-100">
+            Hasil dari <span className="text-blue-600 dark:text-blue-400">{activeSearch?.domain}</span>
+            {activeSearch?.theme && <> — "{activeSearch.theme}"</>}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {results.map((item, i) => (
+              <div key={i} className="p-4 border border-gray-200 dark:border-gray-800 rounded-lg flex flex-col justify-between">
+                <div>
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 dark:text-blue-400 font-medium hover:underline line-clamp-2"
+                  >
+                    {item.title}
+                  </a>
+                  <p className="text-sm text-gray-500 mt-2 line-clamp-3">{item.snippet}</p>
+                  <p className="text-xs text-gray-400 mt-2">{item.publishDate || "Tanggal tidak diketahui"}</p>
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 text-right">
+                  <button
+                    id={`cbtn-${item.url}`}
+                    onClick={() => handleSaveInsight(item.title, item.url)}
+                    className="text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 font-medium px-3 py-1.5 rounded text-gray-700 dark:text-gray-300 transition-colors"
+                  >
+                    Save Insight
+                  </button>
                 </div>
               </div>
             ))}
           </div>
-        )}
+        </div>
+      )}
 
-        {!isPending && activeDomain && results.length === 0 && !error && (
-          <div className="text-center py-12 text-gray-400 text-sm">
-            Tidak ada artikel ditemukan. Coba ubah rentang waktu atau kata kunci.
+      {/* History */}
+      {history.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="font-medium text-gray-900 dark:text-gray-100">Riwayat Pencarian</h3>
+          <div className="space-y-2">
+            {history.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => loadFromHistory(item)}
+                className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                  activeHistoryId === item.id
+                    ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                    : "border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{item.sourceDomain}</span>
+                    {item.theme && (
+                      <span className="ml-2 text-xs text-gray-500">— {item.theme}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs text-gray-400">{item.results.length} artikel</span>
+                    <span className="text-xs text-gray-400">
+                      {item.createdAt ? new Date(item.createdAt).toLocaleDateString("id-ID") : ""}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

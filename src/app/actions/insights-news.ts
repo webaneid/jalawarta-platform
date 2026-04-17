@@ -76,6 +76,21 @@ export async function getWatchlist() {
     .orderBy(desc(newsSourceWatchlists.createdAt));
 }
 
+export async function getCompetitorSearchHistory() {
+  const session = await getSession();
+  if (!session?.tenantId || !hasCapability(session.role as any, "edit_posts")) throw new Error("Unauthorized");
+
+  return db.query.newsSearches.findMany({
+    where: and(
+      eq(newsSearches.tenantId, session.tenantId),
+      eq(newsSearches.searchType, "competitor"),
+    ),
+    with: { results: { orderBy: (r: any, { asc }: any) => [asc(r.position)] } },
+    orderBy: [desc(newsSearches.createdAt)],
+    limit: 20,
+  });
+}
+
 export async function addSourceToWatchlist(name: string, domain: string) {
   const session = await getSession();
   if (!session?.tenantId || !hasCapability(session.role as any, "edit_posts")) throw new Error("Unauthorized");

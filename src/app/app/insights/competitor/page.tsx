@@ -1,8 +1,11 @@
-import { getWatchlist } from "@/app/actions/insights-news";
+import { getWatchlist, getCompetitorSearchHistory } from "@/app/actions/insights-news";
 import CompetitorClient from "./CompetitorClient";
 
 export default async function CompetitorMonitorPage() {
-  const watchlist = await getWatchlist();
+  const [watchlist, history] = await Promise.all([
+    getWatchlist(),
+    getCompetitorSearchHistory(),
+  ]);
 
-  return <CompetitorClient initialWatchlist={watchlist} />;
+  return <CompetitorClient initialWatchlist={watchlist} initialHistory={history} />;
 }
