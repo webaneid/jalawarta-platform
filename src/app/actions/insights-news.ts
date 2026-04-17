@@ -80,12 +80,10 @@ export async function getCompetitorSearchHistory() {
   const session = await getSession();
   if (!session?.tenantId || !hasCapability(session.role as any, "edit_posts")) throw new Error("Unauthorized");
 
+  const tenantId = session.tenantId;
   return db.query.newsSearches.findMany({
-    where: and(
-      eq(newsSearches.tenantId, session.tenantId),
-      eq(newsSearches.searchType, "competitor"),
-    ),
-    with: { results: { orderBy: (r: any, { asc }: any) => [asc(r.position)] } },
+    where: (ns, { eq, and }) => and(eq(ns.tenantId, tenantId), eq(ns.searchType, "competitor")),
+    with: { results: { orderBy: (r, { asc }) => [asc(r.position)] } },
     orderBy: [desc(newsSearches.createdAt)],
     limit: 20,
   });

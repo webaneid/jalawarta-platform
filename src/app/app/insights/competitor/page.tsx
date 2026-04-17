@@ -3,8 +3,8 @@ import CompetitorClient from "./CompetitorClient";
 
 export default async function CompetitorMonitorPage() {
   const [watchlist, history] = await Promise.all([
-    getWatchlist(),
-    getCompetitorSearchHistory(),
+    getWatchlist().catch(() => []),
+    getCompetitorSearchHistory().catch(() => []),
   ]);
 
   return <CompetitorClient initialWatchlist={watchlist} initialHistory={history} />;

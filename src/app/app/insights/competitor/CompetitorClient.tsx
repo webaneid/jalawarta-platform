@@ -27,8 +27,8 @@ export default function CompetitorClient({
   initialWatchlist: WatchlistEntry[];
   initialHistory: HistoryItem[];
 }) {
-  const [watchlist, setWatchlist] = useState<WatchlistEntry[]>(initialWatchlist);
-  const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
+  const [watchlist, setWatchlist] = useState<WatchlistEntry[]>(initialWatchlist ?? []);
+  const [history, setHistory] = useState<HistoryItem[]>(initialHistory ?? []);
 
   const [source, setSource] = useState("");
   const [keyword, setKeyword] = useState("");
