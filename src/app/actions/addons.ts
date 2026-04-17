@@ -81,6 +81,7 @@ export async function toggleAddonStatusAction(tenantId: string, pluginId: string
     }
 
     revalidatePath("/app/addons");
+    revalidatePath("/app", "layout");
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message };
