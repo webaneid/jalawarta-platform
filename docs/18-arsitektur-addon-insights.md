@@ -21,12 +21,21 @@ Dokumen ini merinci rancangan arsitektur dan spesifikasi teknis ekosistem add-on
 
 Secara garis besar, **Insight** adalah "inbox" tempat content writer dan AI mengantrikan topik trending atau berita lama untuk disusun sebagai artikel baru secara terpusat dan terotomatisasi.
 
-### 2.1 News Insight (Riset Berita Kompetitor)
-Sistem pencarian dan pengeruk berita dari domain situs lain:
-- Memasukkan parameter domain (contoh: `cnnindonesia.com`) dan pilihan rentang waktu/keyword.
-- Menggunakan **Serper API** untuk mendapatkan daftar berita mentah (Google News backend).
-- Artikel yang sekiranya menarik akan diunduh isi teks aslinya via **Firecrawl API**.
-- Teks super detail tadi selanjutnya ditembakkan ke AI Provider (Gemini/OpenAI) untuk ditulis ulang tanpa melanggar *copyright* (Plagiarism-free rewriting).
+### 2.1 News Source Insight — Kompetitor Monitor *(Baru — Direncanakan)*
+Sistem pemantauan berita dari domain sumber spesifik yang dipilih tenant (kompetitor):
+- Tenant mendaftarkan daftar sumber berita (contoh: `antaranews.com`, `tempo.co`, `republika.co.id`).
+- Opsional: filter tambahan berupa keyword/topik dan rentang waktu.
+- Menggunakan **Serper API** dengan operator `site:` — contoh query: `site:tempo.co OR site:antaranews.com ekonomi`.
+- Hasil menampilkan artikel terbaru yang diindeks Google dari sumber tersebut.
+- Artikel menarik disimpan sebagai Insight untuk ditulis ulang oleh AI (via Firecrawl + AI Generator).
+- Tujuan utama: **duplikasi konten kompetitor** — pantau apa yang mereka publikasikan, replikasi dengan sudut pandang berbeda.
+
+### 2.2 Search Engine Insight — Riset Topik *(Sudah Ada)*
+Sistem pencarian berita berbasis keyword/topik global:
+- Tenant memasukkan query bebas (topik, tren, peristiwa).
+- Menggunakan **Serper API** `/news` endpoint tanpa filter domain.
+- Hasil menampilkan berita dari berbagai sumber yang relevan dengan query.
+- Route: `/insights/news` | Action: `insights-news.ts`
 
 ### 2.2 Social Insight (Riset Tren Sosial)
 Mesin pengepul tren viral sosmed lintas platform (TikTok, Twitter/X, Google Trends):
@@ -117,3 +126,219 @@ Tiap kali satu artikel pecah dari proses keruk Firecrawl dan siap dikirim ke Gem
 3. Ia membebani saldo limit user yang terekam pada properti `tenantPlugins(aiCreditsUsed)` menggunakan function `updateCreditsUsed(tenantId, config, cost)`.
  
 Arsitektur perampingan lisensi ini menguntungkan Super Admin karena memelihara satu saja produk SaaS paket kuota Text Generation.
+
+---
+
+## 7. Riset Serper API (Live — 17 Apr 2026)
+
+Pengujian langsung ke `https://google.serper.dev/news` menggunakan key aktif menghasilkan temuan berikut:
+
+### 7.1 Parameter Request
+
+| Parameter | Tipe | Deskripsi | Contoh |
+|---|---|---|---|
+| `q` | string | Query pencarian. Mendukung semua Google Search Operators | `"site:tempo.co ekonomi"` |
+| `num` | number | Jumlah hasil (maks ~10 per page default) | `10` |
+| `gl` | string | Kode negara (Google country) | `"id"` untuk Indonesia |
+| `hl` | string | Kode bahasa hasil | `"id"` untuk Bahasa Indonesia |
+| `tbs` | string | Filter rentang waktu | lihat tabel di bawah |
+| `page` | number | Halaman paginasi | `1` |
+
+### 7.2 Nilai `tbs` (Time Range)
+
+| Nilai | Deskripsi |
+|---|---|
+| `qdr:h` | 1 jam terakhir |
+| `qdr:d` | 24 jam terakhir |
+| `qdr:w` | 1 minggu terakhir |
+| `qdr:m` | 1 bulan terakhir |
+| `qdr:y` | 1 tahun terakhir |
+| *(kosong)* | Semua waktu |
+
+### 7.3 Struktur Response Per Item
+
+```json
+{
+  "title": "Judul artikel",
+  "link": "https://tempo.co/...",
+  "snippet": "Ringkasan isi artikel...",
+  "date": "3 jam yang lalu",
+  "source": "Tempo.co",
+  "imageUrl": "data:image/jpeg;base64,..."
+}
+```
+
+### 7.4 Cara Filter Per Domain (Site Operator)
+
+```
+// Satu sumber
+q: "site:tempo.co"
+
+// Satu sumber + keyword
+q: "site:tempo.co ekonomi digital"
+
+// Multiple sumber (OR)
+q: "site:antaranews.com OR site:republika.co.id"
+
+// Multiple sumber + keyword
+q: "site:antaranews.com OR site:tempo.co ekonomi"
+```
+
+Semua variasi di atas **terbukti bekerja** dan mengembalikan hasil yang benar dari sumber yang dimaksud.
+
+---
+
+## 8. Arsitektur Fitur: News Source Insight (Kompetitor Monitor)
+
+### 8.1 Konsep & Tujuan
+
+Tenant mendaftarkan **daftar domain kompetitor** yang ingin dipantau. Sistem secara on-demand mencari artikel terbaru dari domain-domain tersebut menggunakan Serper, menampilkan hasilnya, dan mengizinkan tenant menyimpan artikel menarik sebagai Insight untuk ditulis ulang oleh AI.
+
+**User flow:**
+```
+Tenant tambah sumber → [antaranews.com, tempo.co]
+Pilih keyword (opsional) + rentang waktu
+Klik "Cari Berita Kompetitor"
+    → Serper: q="site:antaranews.com OR site:tempo.co [keyword]"
+    → Tampilkan hasil (title, snippet, date, source, link)
+Tenant centang artikel menarik
+    → "Simpan sebagai Insight" → DB insights (status: PENDING)
+    → Opsional: "Generate Sekarang" → Firecrawl scrape → AI rewrite → Draft post
+```
+
+### 8.2 Struktur Database Tambahan
+
+**Tabel baru: `newsSourceWatchlists`** — daftar domain yang disimpan per tenant:
+```typescript
+newsSourceWatchlists = pgTable("news_source_watchlists", {
+  id:        text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  tenantId:  text("tenant_id").notNull().references(() => tenants.id),
+  domain:    text("domain").notNull(),        // "tempo.co", "antaranews.com"
+  label:     text("label"),                   // "Tempo", "Antara News" (nama tampilan)
+  isActive:  boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+})
+// Unique constraint: (tenantId, domain)
+```
+
+**Modifikasi tabel `newsSearches`** — tambah kolom untuk bedakan tipe search:
+```typescript
+// Tambah kolom:
+searchType: text("search_type").default("topic"),  // "topic" | "source"
+sources:    jsonb("sources"),                       // ["tempo.co", "antaranews.com"] jika type=source
+```
+
+### 8.3 File yang Perlu Dibuat/Dimodifikasi
+
+```
+src/
+├── app/app/insights/
+│   └── competitor/
+│       ├── page.tsx                    ← Halaman Kompetitor Monitor (Server Component)
+│       └── CompetitorClient.tsx        ← Form pencarian + hasil + watchlist manager
+├── app/actions/
+│   └── insights-news.ts               ← Tambah: searchNewsBySource(), manageWatchlist()
+├── lib/insight-providers/
+│   └── serper.ts                       ← Tambah: searchNewsBySite(domains, keyword, tbs, gl, hl)
+└── db/schema.ts                        ← Tambah: newsSourceWatchlists, kolom di newsSearches
+```
+
+### 8.4 Server Actions Baru
+
+```typescript
+// insights-news.ts — tambahan
+
+// Cari berita dari domain spesifik
+export async function searchNewsBySource(params: {
+  domains: string[];      // ["tempo.co", "antaranews.com"]
+  keyword?: string;       // opsional filter topik
+  tbs?: string;           // "qdr:d" | "qdr:w" | "qdr:m"
+  gl?: string;            // "id"
+  hl?: string;            // "id"
+})
+
+// Kelola watchlist domain kompetitor
+export async function addSourceToWatchlist(domain: string, label: string)
+export async function removeSourceFromWatchlist(domain: string)
+export async function getWatchlist()                   // ambil daftar domain tenant
+```
+
+### 8.5 Modifikasi `serper.ts`
+
+```typescript
+// Fungsi baru di src/lib/insight-providers/serper.ts
+
+export async function searchNewsBySite(params: {
+  domains: string[];
+  keyword?: string;
+  tbs?: string;
+  gl?: string;
+  hl?: string;
+  num?: number;
+}) {
+  const apiKey = await getDecryptedCredential("news_insight", "serper");
+  if (!apiKey) throw new Error("API Key Serper belum dikonfigurasi.");
+
+  // Bangun query: "site:d1.com OR site:d2.com keyword"
+  const siteQuery = params.domains.map(d => `site:${d}`).join(" OR ");
+  const q = params.keyword ? `${siteQuery} ${params.keyword}` : siteQuery;
+
+  const payload = {
+    q,
+    num: params.num ?? 10,
+    gl: params.gl ?? "id",
+    hl: params.hl ?? "id",
+    ...(params.tbs && { tbs: params.tbs }),
+  };
+
+  const response = await fetch("https://google.serper.dev/news", {
+    method: "POST",
+    headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error(`Serper error: ${response.status}`);
+  const data = await response.json();
+  return data.news || [];
+}
+```
+
+### 8.6 Navigasi — Tambah Sub-Menu di Insights
+
+```typescript
+// SidebarNav.tsx — tambah child di group Insights
+{ label: "Kompetitor Monitor", href: "/insights/competitor" },
+```
+
+Dan di `insights/layout.tsx` — tambah tab navigasi:
+```tsx
+<Link href="/insights/competitor">Kompetitor Monitor</Link>
+```
+
+### 8.7 UI Halaman Kompetitor Monitor
+
+**Dua section utama:**
+
+**Section A — Watchlist Manager:**
+- Input tambah domain: `[antaranews.com] [+ Tambah]`
+- Daftar domain tersimpan dengan tombol hapus
+- Saved ke DB `newsSourceWatchlists`
+
+**Section B — Form Pencarian:**
+- Checkbox pilih domain dari watchlist (pre-fill)
+- Input keyword opsional
+- Select rentang waktu (Hari ini / Minggu ini / Bulan ini)
+- Tombol "Cari Berita Kompetitor"
+- Hasil: kartu artikel (source badge, judul, snippet, tanggal, link)
+- Per artikel: tombol "Simpan sebagai Insight" + "Generate Langsung"
+
+### 8.8 Perbedaan Dua Fitur News (Ringkasan)
+
+| Aspek | Search Engine Insight | News Source Insight |
+|---|---|---|
+| **Route** | `/insights/news` | `/insights/competitor` |
+| **Query basis** | Keyword/topik bebas | Domain kompetitor spesifik |
+| **Serper query** | `"ekonomi digital"` | `"site:tempo.co OR site:antaranews.com"` |
+| **Tujuan** | Riset tren umum | Pantau + duplikasi kompetitor |
+| **Watchlist** | Tidak ada | Ada (domain tersimpan per tenant) |
+| **DB** | `newsSearches` (type=topic) | `newsSearches` (type=source) + `newsSourceWatchlists` |
