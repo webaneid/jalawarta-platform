@@ -2,10 +2,19 @@ import SignOutButton from "@/components/SignOutButton";
 import SidebarNav from "@/components/SidebarNav";
 import Link from "next/link";
 import { auth } from "@/auth";
+import { getTenantAddons } from "@/app/actions/addons";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const user = session?.user as any;
+
+  const { addons } = user?.tenantId
+    ? await getTenantAddons(user.tenantId)
+    : { addons: [] };
+
+  const activeAddonIds = (addons ?? [])
+    .filter((a: any) => a.status === "ACTIVE")
+    .map((a: any) => a.id as string);
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 font-sans">
@@ -22,7 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4">
-          <SidebarNav role={user?.role} />
+          <SidebarNav role={user?.role} activeAddonIds={activeAddonIds} />
         </nav>
 
         {/* User footer */}

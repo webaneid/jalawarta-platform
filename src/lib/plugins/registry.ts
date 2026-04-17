@@ -34,6 +34,13 @@ export const PLUGIN_REGISTRY: Record<string, PluginDefinition> = {
     component: () => null, // Placeholder
     supportedSlots: ["content"],
   },
+  "ai-insights": {
+    id: "ai-insights",
+    name: "AI Content Insights",
+    description: "Mesin pencari tren berita dan sosial media cerdas untuk riset konten otomatis.",
+    component: () => null, // Tidak ada injeksi publik — fitur berjalan di dasbor tenant
+    supportedSlots: [],
+  },
   // Plugin lain bisa didaftarkan di sini
 };
 

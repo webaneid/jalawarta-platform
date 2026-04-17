@@ -114,11 +114,12 @@ const NAV: NavItem[] = [
   },
 ];
 
-export default function SidebarNav({ role = "SUBSCRIBER" }: { role?: Role }) {
+export default function SidebarNav({ role = "SUBSCRIBER", activeAddonIds = [] }: { role?: Role; activeAddonIds?: string[] }) {
   const pathname = usePathname();
 
-  // Filter NAV base on capabilities
+  // Filter NAV based on capabilities and active addons
   const filteredNav = NAV.filter(item => {
+    if (item.label === "Insights" && !activeAddonIds.includes("ai-insights")) return false;
     if (!item.requiredCapability) return true;
     return hasCapability(role, item.requiredCapability);
   });
