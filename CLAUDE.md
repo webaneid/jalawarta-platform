@@ -35,6 +35,7 @@ Selalu baca dokumen arsitektur relevan **sebelum** mengimplementasikan atau meng
 | [`20-arsitektur-deploy.md`](./docs/20-arsitektur-deploy.md) | Deployment architecture |
 | [`21-arsitektur-platform-implementasi.md`](./docs/21-arsitektur-platform-implementasi.md) | **WAJIB BACA** — Implementasi aktual platform: status fitur, skema DB, gap, learning log |
 | [`22-arsitektur-addon-standar.md`](./docs/22-arsitektur-addon-standar.md) | **WAJIB BACA** — Blueprint standar membangun add-on baru (Inject & Feature), checklist lengkap |
+| [`23-arsitektur-firecrawl.md`](./docs/23-arsitektur-firecrawl.md) | **WAJIB BACA** — Web Scraping Engine: Firecrawl integration, alur URL→scrape→AI, API Vault |
 
 ---
 
