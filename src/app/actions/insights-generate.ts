@@ -46,14 +46,18 @@ export async function dispatchInsightGeneration(insightId: string, customInstruc
       throw new Error(result.error);
     }
 
-    // Auto-create DRAFT post
-    const articleTitle = insightRecord.topic;
+    // Extract AI-generated <h1> as post title, body as content
+    const rawHtml = result.text as string;
+    const h1Match = rawHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const aiTitle = h1Match ? h1Match[1].replace(/<[^>]*>?/gm, "").trim() : insightRecord.topic;
+    const bodyHtml = h1Match ? rawHtml.replace(h1Match[0], "").trim() : rawHtml;
+
     const [newPost] = await db.insert(posts).values({
       tenantId: session!.tenantId!,
       authorId: session!.userId!,
-      slug: `${slugify(articleTitle)}-${Date.now()}`,
-      title: { id: articleTitle, en: "" },
-      content: { html: result.text } as any,
+      slug: `${slugify(aiTitle)}-${Date.now()}`,
+      title: { id: aiTitle, en: "" },
+      content: { html: bodyHtml } as any,
       status: "DRAFT",
     }).returning();
 
@@ -106,12 +110,17 @@ export async function dispatchStrategyGeneration(strategyId: string, customInstr
 
       if (!result.success) throw new Error(result.error);
 
+      const rawRoundup = result.text as string;
+      const h1Roundup = rawRoundup.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+      const roundupTitle = h1Roundup ? h1Roundup[1].replace(/<[^>]*>?/gm, "").trim() : `Kumpulan Tren Viral ${Date.now()}`;
+      const roundupBody = h1Roundup ? rawRoundup.replace(h1Roundup[0], "").trim() : rawRoundup;
+
       await db.insert(posts).values({
         tenantId: session.tenantId,
         authorId: session.userId!,
-        slug: `${slugify(`roundup-tren-viral-${records[0]?.content?.substring(0, 30) || 'terbaru'}`)}-${Date.now()}`,
-        title: { id: `Kumpulan Tren Viral: ${records[0]?.content?.substring(0, 30) || 'Terbaru'}...`, en: "" },
-        content: { html: result.text } as any,
+        slug: `${slugify(roundupTitle)}-${Date.now()}`,
+        title: { id: roundupTitle, en: "" },
+        content: { html: roundupBody } as any,
         status: "DRAFT",
       });
       
@@ -128,12 +137,16 @@ export async function dispatchStrategyGeneration(strategyId: string, customInstr
          });
 
          if (result.success) {
+           const rawDive = result.text as string;
+           const h1Dive = rawDive.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+           const diveTitle = h1Dive ? h1Dive[1].replace(/<[^>]*>?/gm, "").trim() : `Bedah Tuntas: ${r.content?.substring(0, 40) || 'Tren Sosmed'}`;
+           const diveBody = h1Dive ? rawDive.replace(h1Dive[0], "").trim() : rawDive;
            await db.insert(posts).values({
              tenantId: session.tenantId,
              authorId: session.userId!,
-             slug: `${slugify(`bedah-tuntas-${r.content?.substring(0, 40) || 'tren-sosmed'}`)}-${r.id.substring(0, 6)}`,
-             title: { id: `Bedah Tuntas: ${r.content?.substring(0, 40) || 'Tren Sosmed'}...`, en: "" },
-             content: { html: result.text } as any,
+             slug: `${slugify(diveTitle)}-${r.id.substring(0, 6)}`,
+             title: { id: diveTitle, en: "" },
+             content: { html: diveBody } as any,
              status: "DRAFT",
            });
          }
