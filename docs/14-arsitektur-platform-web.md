@@ -191,8 +191,11 @@ export const apiCredentials = pgTable("api_credentials", {
 | `/platform/addons/ai-article-generator` | `page.tsx` | `PlatformAiConfigClient` | ✅ Selesai | Set credit limit per-tenant |
 | `/platform/addons/ai-insights` | `page.tsx` | — | ✅ Selesai | Info page |
 | `/platform/api-keys` | `api-keys/page.tsx` | `ApiKeysClient` | ✅ Selesai | Vault CRUD, AES-256-GCM, masked display |
-| `/platform/modules` | `modules/page.tsx` | `ModulesClient` | ⚠️ Stub | UI komponen ada, tidak ada data aktual dari DB |
-| `/platform/tenants` | — | — | ❌ Belum ada | Ada di sidebar → 404. Gap terbesar. |
+| `/platform/modules` | `modules/page.tsx` | `ModulesClient` | ✅ Selesai | Terhubung ke packages DB, 5 module cards |
+| `/platform/tenants` | `tenants/page.tsx` | `TenantsClient` | ✅ Selesai | Filter status, inline status changer |
+| `/platform/tenants/[id]` | `tenants/[id]/page.tsx` | `TenantDetailClient` | ✅ Selesai | Detail, kelola paket & status, tim, add-on |
+| `/platform/tenants/new` | — | `CreateTenantClient` | 🔴 Proposal F3 | Form onboarding tenant baru |
+| `/platform/transactions` | — | `TransactionsClient` | 🟠 Proposal F4 | Manajemen tagihan & verifikasi bayar |
 
 ---
 
@@ -203,54 +206,321 @@ export const apiCredentials = pgTable("api_credentials", {
 | Action | Fungsi | Status |
 |---|---|---|
 | `savePackage(data)` | Upsert paket SaaS (create/edit) | ✅ Ada |
-| `getTenants()` | Ambil semua tenant + info paket + jumlah member | ❌ Belum ada |
-| `updateTenantSubscription(tenantId, packageId)` | Ganti paket tenant | ❌ Belum ada |
-| `updateTenantStatus(tenantId, status)` | Suspend / aktifkan tenant | ❌ Belum ada |
-| `registerPlugin(data)` | Daftarkan add-on baru ke registry global | ❌ Belum ada |
+| `getTenants()` | Ambil semua tenant + info paket + jumlah member | ✅ Ada |
+| `getTenantDetail(id)` | Detail tenant: owner, pkg, members, addons | ✅ Ada |
+| `updateTenantSubscription(tenantId, packageId)` | Ganti paket tenant | ✅ Ada |
+| `updateTenantStatus(tenantId, status)` | Suspend / aktifkan tenant | ✅ Ada |
+| `registerPlugin(data)` | Daftarkan add-on baru ke registry global | ✅ Ada |
+| `createTenant(data)` | Buat tenant baru + user + member sekaligus | 🔴 Proposal F3 |
+| `getTransactions(filter?)` | Ambil semua transaksi lintas tenant | 🟠 Proposal F4 |
+| `createTransaction(...)` | Buat tagihan manual untuk tenant | 🟠 Proposal F4 |
+| `markTransactionPaid(...)` | Tandai transaksi lunas + aktivasi tenant | 🟠 Proposal F4 |
 
 ---
 
 ## 7. Rencana Eksekusi Gap
 
-### 🔴 P1 — Halaman Manajemen Tenant (`/platform/tenants`)
+### ✅ P1 — Halaman Manajemen Tenant — SELESAI (18 Apr 2026)
+`/platform/tenants`, `/platform/tenants/[id]`, `TenantsClient`, `TenantDetailClient`, actions: `getTenants`, `getTenantDetail`, `updateTenantSubscription`, `updateTenantStatus`.
 
-Halaman paling kritis yang hilang. Platform Admin tidak bisa melihat atau mengelola tenant dari UI.
+### ✅ P2 — Modules Page — SELESAI (18 Apr 2026)
+`ModulesClient` terhubung ke packages DB. 5 module cards (News, Pages, Media, AI Generator, AI Insights). Hardcoded sebagai konstanta — bukan tabel DB.
 
-**Scope:**
-- `src/app/platform/tenants/page.tsx` — tabel semua tenant, filter by status, badge paket
-- `src/app/platform/tenants/[id]/page.tsx` — detail tenant: info dasar, paket aktif, add-on aktif, jumlah posts/users
-- Server Actions baru: `getTenants()`, `updateTenantSubscription()`, `updateTenantStatus()`
-- UI: tabel responsif + modal konfirmasi suspend
+### ✅ P3 — Register Plugin Baru — SELESAI (18 Apr 2026)
+Modal "Daftarkan Plugin Baru" + `registerPlugin()` action + auto-slug ID generator.
 
-### 🟠 P2 — Modules Page (`/platform/modules`)
-
-`ModulesClient` sudah ada sebagai UI tapi tidak terhubung ke data aktual.
-
-**Keputusan arsitektur yang perlu dibuat:**
-- Apakah "Core Module" menggunakan tabel DB terpisah dari `plugins`?
-- Atau hardcoded sebagai konstanta di `lib/` dan dikontrol via `packages.features.allowedModules`?
-
-**Rekomendasi**: Hardcode sebagai konstanta (tidak perlu tabel baru) — modules adalah fitur core bawaan platform, bukan add-on yang bisa didaftarkan sembarang pihak.
-
-### 🟠 P3 — Register Plugin Baru di Add-on Marketplace
-
-Tombol "Daftarkan Plugin Baru" di `/platform/addons` masih stub.
-
-**Scope:**
-- Modal form: `id` (slug unik), `name`, `description`, `configSchema` (JSON editor)
-- Server Action: `registerPlugin(data)` dengan validasi ID unik
-- Setelah register, Platform Admin masuk ke paket masing-masing untuk menambahkan plugin ID ke `allowedAddons`
-
-### 🟡 P4 — Platform Overview Enhancement
-
-**Scope:**
-- List 5 tenant terbaru dengan status badge
-- Breakdown: berapa TRIAL / ACTIVE / EXPIRED / SUSPENDED
-- Agregasi pemakaian AI credits lintas semua tenant (dari `tenantPlugins.config.aiCreditsUsed`)
+### ✅ P4 — Platform Overview Enhancement — SELESAI (18 Apr 2026)
+Breakdown status tenant, AI credits progress bar lintas tenant, list 5 tenant terbaru clickable.
 
 ---
 
-## 8. Konvensi Keamanan — Wajib di Semua Platform Actions
+---
+
+## 8. Proposal: Tenant Onboarding, Settings Lanjutan & Sistem Transaksi
+
+> Status: **PROPOSAL** — belum diimplementasikan. Dokumen ini adalah blueprint eksekusi fase berikutnya.
+
+---
+
+### 8.1 Gambaran Besar — Apa yang Dibangun
+
+Sistem ini mencakup **3 area besar** yang saling terhubung:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  A. PLATFORM ADMIN (platform.localhost)                         │
+│     · Form registrasi tenant baru                               │
+│     · Manajemen transaksi & tagihan                             │
+│     · Verifikasi pembayaran manual (QRIS, transfer)             │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ create & manage
+┌──────────────────────────▼──────────────────────────────────────┐
+│  B. TENANT SETTINGS (app.localhost/settings)                    │
+│     Tab 1 — Identitas   : nama, logo, slogan, deskripsi         │
+│     Tab 2 — Kontak      : email, telepon, alamat                 │
+│     Tab 3 — Sosial Media: IG, X, FB, YouTube, TikTok, LinkedIn  │
+│     Tab 4 — Pembayaran  : rekening bank, QRIS, info bisnis      │
+│     Tab 5 — Teknis      : domain, favicon, timezone, SEO, maint │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ stored in
+┌──────────────────────────▼──────────────────────────────────────┐
+│  C. DATABASE                                                    │
+│     · tenants (kolom baru + perluasan schemaConfig JSONB)       │
+│     · transactions (tabel baru)                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 8.2 Perubahan Skema Database
+
+#### 8.2.1 Perluasan `schemaConfig` JSONB di tabel `tenants`
+
+Tidak perlu kolom baru — semua data ekstensif disimpan di `schemaConfig` (JSONB yang sudah ada).
+Struktur penuh `schemaConfig` yang diusulkan:
+
+```typescript
+type TenantSchemaConfig = {
+  // === IDENTITAS ===
+  logo: string;             // URL gambar logo (dari Media Library)
+  slogan: string;           // Tagline singkat situs
+  description: string;      // Deskripsi panjang / "Tentang Kami"
+  favicon: string;          // URL favicon
+
+  // === KONTAK ===
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  city: string;
+  province: string;
+  postalCode: string;
+
+  // === SOSIAL MEDIA ===
+  socialInstagram: string;  // handle atau URL penuh
+  socialX: string;          // (Twitter/X)
+  socialFacebook: string;
+  socialYoutube: string;
+  socialTiktok: string;
+  socialLinkedin: string;
+
+  // === PEMBAYARAN & BISNIS ===
+  businessName: string;     // Nama badan usaha / PT / CV
+  npwp: string;             // NPWP opsional
+  bankName: string;         // e.g. "BCA", "Mandiri"
+  bankAccountNumber: string;
+  bankAccountName: string;  // Nama pemilik rekening
+  qrisImage: string;        // URL gambar QRIS (dari Media Library)
+
+  // === TEKNIS (sudah ada, dipertahankan) ===
+  timezone: string;         // e.g. "Asia/Jakarta"
+  maintenanceMode: boolean;
+  seoIndexing: boolean;     // Apakah boleh diindex search engine
+  footerText: string;
+  language: string;         // "id" | "en"
+  themeColor: string;       // Primary color hex, e.g. "#2563EB"
+};
+```
+
+#### 8.2.2 Tabel Baru: `transactions`
+
+```typescript
+export const transactions = pgTable("transactions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  packageId: text("package_id").references(() => packages.id, { onDelete: "set null" }),
+
+  // Identitas transaksi
+  invoiceNumber: text("invoice_number").unique().notNull(), // e.g. "INV-2026-0001"
+  amount: integer("amount").notNull(),                      // Rupiah
+  periodMonths: integer("period_months").default(1),        // Durasi berlangganan
+
+  // Status & metode pembayaran
+  status: text("status").notNull().default("PENDING"),
+  // "PENDING" | "PAID" | "EXPIRED" | "CANCELLED"
+  paymentMethod: text("payment_method"),
+  // "bank_transfer" | "qris" | "midtrans" | "xendit" | "manual"
+  paymentProof: text("payment_proof"),                      // URL bukti transfer (dari Media Library)
+  paymentNotes: text("payment_notes"),                      // Catatan admin
+
+  // Timestamps
+  dueDate: timestamp("due_date"),
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: text("created_by"),                            // userId platform admin
+});
+```
+
+---
+
+### 8.3 Area A — Platform Admin: Tenant Onboarding & Transaksi
+
+#### 8.3.1 Form Registrasi Tenant Baru (`/platform/tenants/new`)
+
+Platform Admin membuat tenant baru secara manual (bukan self-signup).
+
+**Form fields:**
+```
+Informasi Dasar:
+  · Nama Situs (siteName)
+  · Subdomain (subdomain) — auto-check keunikan
+  · Nama Pemilik
+  · Email Pemilik (akan dibuat akun user baru otomatis)
+  · Password Sementara (untuk login pertama)
+
+Langganan:
+  · Pilih Paket (dropdown dari packages)
+  · Status Awal: TRIAL / ACTIVE
+  · Durasi Trial (hari)
+
+Catatan Internal (opsional):
+  · Catatan Admin (tidak terlihat tenant)
+```
+
+**Server Actions yang dibutuhkan:**
+```typescript
+createTenant(data: {
+  siteName: string;
+  subdomain: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPassword: string;      // akan di-hash bcrypt
+  packageId: string | null;
+  subscriptionStatus: string;
+  adminNotes?: string;
+}) → { success, tenantId, userId }
+```
+
+**Alur:**
+1. Validasi subdomain unik
+2. Insert `user` (hash password bcrypt)
+3. Insert `tenant` (ownerId = userId baru)
+4. Insert `tenantMembers` (role: SUPER_ADMIN)
+5. Jika paket dipilih → buat `transaction` (PENDING) otomatis
+6. `revalidatePath("/platform/tenants")`
+
+#### 8.3.2 Manajemen Transaksi (`/platform/transactions`)
+
+Halaman daftar semua tagihan & transaksi lintas tenant.
+
+**UI:**
+- Tabel: Invoice No, Tenant, Paket, Amount, Status, Due Date, Aksi
+- Filter: status (PENDING / PAID / EXPIRED / CANCELLED), bulan
+- Tombol: "Buat Tagihan Manual" (per tenant), "Tandai Lunas", "Upload Bukti"
+
+**Server Actions:**
+```typescript
+getTransactions(filter?: { status?, tenantId? })
+createTransaction(tenantId, packageId, periodMonths)
+markTransactionPaid(transactionId, paymentMethod, proof?)
+cancelTransaction(transactionId)
+```
+
+#### 8.3.3 Verifikasi Pembayaran Manual
+
+Untuk QRIS & bank transfer, Platform Admin:
+1. Membuat invoice dari `/platform/transactions`
+2. Tenant membayar (transfer / scan QRIS)
+3. Tenant upload bukti di settings mereka ATAU Platform Admin upload langsung
+4. Platform Admin klik "Tandai Lunas" → `transactions.status = "PAID"`, tenant `subscriptionStatus = "ACTIVE"`
+
+---
+
+### 8.4 Area B — Tenant Settings Lanjutan (5 Tab)
+
+Halaman `/settings` di CMS tenant direfactor menjadi **tab-based layout**.
+
+#### Tab 1 — Identitas Situs
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| Nama Situs | text | `tenants.siteName` |
+| Slogan | text | `schemaConfig.slogan` |
+| Deskripsi / Tentang | textarea | `schemaConfig.description` |
+| Logo | image picker | `schemaConfig.logo` (dari Media Library) |
+| Favicon | image picker | `schemaConfig.favicon` (sudah ada) |
+| Warna Utama | color picker | `schemaConfig.themeColor` |
+
+#### Tab 2 — Informasi Kontak
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| Email Kontak | text | `schemaConfig.contactEmail` |
+| Nomor Telepon | text | `schemaConfig.contactPhone` |
+| Alamat Lengkap | textarea | `schemaConfig.address` |
+| Kota | text | `schemaConfig.city` |
+| Provinsi | text | `schemaConfig.province` |
+| Kode Pos | text | `schemaConfig.postalCode` |
+
+#### Tab 3 — Sosial Media
+
+| Platform | Field | Keterangan |
+|---|---|---|
+| Instagram | `socialInstagram` | Handle atau URL profil |
+| X (Twitter) | `socialX` | Handle atau URL |
+| Facebook | `socialFacebook` | URL halaman |
+| YouTube | `socialYoutube` | URL channel |
+| TikTok | `socialTiktok` | Handle atau URL |
+| LinkedIn | `socialLinkedin` | URL halaman perusahaan |
+
+#### Tab 4 — Pembayaran & Bisnis
+
+Digunakan untuk keperluan tampilan di frontend publik (footer, halaman donasi, dll).
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| Nama Badan Usaha | text | `schemaConfig.businessName` |
+| NPWP | text | `schemaConfig.npwp` (opsional) |
+| Nama Bank | text | `schemaConfig.bankName` |
+| No. Rekening | text | `schemaConfig.bankAccountNumber` |
+| Nama Pemilik Rekening | text | `schemaConfig.bankAccountName` |
+| Gambar QRIS | image picker | `schemaConfig.qrisImage` (dari Media Library) |
+
+#### Tab 5 — Teknis & Preferensi
+
+*(sudah ada, diperluas)*
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| Custom Domain | text | `tenants.customDomain` |
+| Zona Waktu | select | `schemaConfig.timezone` |
+| Bahasa Antarmuka | select | `schemaConfig.language` |
+| SEO Indexing | toggle | `schemaConfig.seoIndexing` |
+| Mode Pemeliharaan | toggle | `schemaConfig.maintenanceMode` |
+| Teks Footer | textarea | `schemaConfig.footerText` |
+
+---
+
+### 8.5 Rute & Komponen yang Dibutuhkan
+
+#### Platform (`platform.localhost`)
+
+| Rute | Komponen | Keterangan |
+|---|---|---|
+| `/platform/tenants/new` | `CreateTenantClient` | Form onboarding tenant baru |
+| `/platform/transactions` | `TransactionsClient` | Daftar semua transaksi |
+| `/platform/transactions/[id]` | `TransactionDetailClient` | Detail + verifikasi pembayaran |
+
+#### Tenant CMS (`app.localhost`)
+
+| Rute | Komponen | Keterangan |
+|---|---|---|
+| `/settings` | `ClientSettings` (refactor) | Tab-based: 5 tab |
+| `/settings/billing` | `BillingClient` (baru) | Riwayat tagihan tenant sendiri, upload bukti |
+
+---
+
+### 8.6 Urutan Eksekusi (Prioritas)
+
+| | Fase | Scope | Effort |
+|---|---|---|---|
+| 🔴 | **F1 — DB Migration** | Tambah tabel `transactions`, extend `schemaConfig` type | XS |
+| 🔴 | **F2 — Tenant Settings Tab** | Refactor `/settings` jadi 5 tab, simpan semua field baru ke `schemaConfig` | M |
+| 🟠 | **F3 — Create Tenant Form** | `/platform/tenants/new` + `createTenant()` action (buat user + tenant + member sekaligus) | M |
+| 🟠 | **F4 — Transactions Platform** | `/platform/transactions` + CRUD actions + verifikasi manual | L |
+| 🟡 | **F5 — Billing Tenant** | `/settings/billing` — tenant lihat tagihan & upload bukti bayar | M |
+| 🟡 | **F6 — Payment Gateway** | Integrasi Midtrans atau Xendit untuk QRIS otomatis (fase lanjut) | XL |
+
+---
 
 Setiap Server Action dari halaman platform **wajib** verifikasi ulang dari DB sebelum operasi apapun:
 
