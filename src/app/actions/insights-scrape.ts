@@ -34,42 +34,47 @@ export async function scrapeAndGenerateArticle(params: {
 }) {
   const session = await getSession();
   if (!session?.tenantId || !hasCapability(session.role as any, "edit_posts"))
-    throw new Error("Unauthorized");
+    return { success: false as const, error: "Unauthorized" };
 
-  // Step 1: Scrape article content
-  const scraped = await scrapeArticle(params.url);
+  try {
+    // Step 1: Scrape article content
+    const scraped = await scrapeArticle(params.url);
 
-  // Step 2: Build context from scraped content
-  const context = buildAIContext([scraped]);
+    // Step 2: Build context from scraped content
+    const context = buildAIContext([scraped]);
 
-  // Step 3: Generate article — topic is generic, AI derives its own title from referenceContent
-  const result = await generateArticle({
-    topic: "artikel berita",
-    referenceContent: context,
-    tone: params.tone ?? "journalistic",
-    length: params.length ?? "medium",
-    language: params.language ?? "id",
-    pov: params.pov ?? "neutral",
-  });
+    // Step 3: Generate article — topic is generic, AI derives its own title from referenceContent
+    const result = await generateArticle({
+      topic: "artikel berita",
+      referenceContent: context,
+      tone: params.tone ?? "journalistic",
+      length: params.length ?? "medium",
+      language: params.language ?? "id",
+      pov: params.pov ?? "neutral",
+    });
 
-  if (!result.success) {
-    throw new Error(result.error ?? "Gagal generate artikel.");
+    if (!result.success) {
+      return { success: false as const, error: result.error ?? "Gagal generate artikel." };
+    }
+
+    const rawHtml = result.text as string;
+
+    // Extract <h1> title and body on the server — more reliable than client-side regex
+    const h1Match = rawHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const aiTitle = h1Match ? h1Match[1].replace(/<[^>]*>?/gm, "").trim() : "";
+    const bodyHtml = h1Match ? rawHtml.replace(h1Match[0], "").trim() : rawHtml;
+
+    return {
+      success: true as const,
+      html: bodyHtml,
+      title: aiTitle,
+      sourceTitle: scraped.title,
+      sourceUrl: scraped.sourceUrl,
+      tokensUsed: result.tokensUsed,
+      creditCost: result.creditCost,
+    };
+  } catch (err: any) {
+    console.error("scrapeAndGenerateArticle error:", err);
+    return { success: false as const, error: err.message ?? "Terjadi kesalahan saat memproses artikel." };
   }
-
-  const rawHtml = result.text as string;
-
-  // Extract <h1> title and body on the server — more reliable than client-side regex
-  const h1Match = rawHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  const aiTitle = h1Match ? h1Match[1].replace(/<[^>]*>?/gm, "").trim() : "";
-  const bodyHtml = h1Match ? rawHtml.replace(h1Match[0], "").trim() : rawHtml;
-
-  return {
-    success: true as const,
-    html: bodyHtml,   // body WITHOUT <h1>
-    title: aiTitle,   // AI-generated title (extracted from <h1>)
-    sourceTitle: scraped.title,
-    sourceUrl: scraped.sourceUrl,
-    tokensUsed: result.tokensUsed,
-    creditCost: result.creditCost,
-  };
 }

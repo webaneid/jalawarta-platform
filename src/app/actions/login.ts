@@ -5,7 +5,6 @@ import { users, tenants, tenantMembers } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { createSession, deleteSession } from "@/lib/session";
-import { redirect } from "next/navigation";
 
 export async function login(email: string, password: string) {
   // Cari user
@@ -76,5 +75,6 @@ export async function login(email: string, password: string) {
 
 export async function logout() {
   await deleteSession();
-  redirect("/login");
+  // Redirect ditangani di client (window.location.href) agar middleware rewrite /login → /app-login
+  // berjalan dengan benar pada setiap request.
 }

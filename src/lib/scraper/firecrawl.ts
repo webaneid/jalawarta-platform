@@ -6,18 +6,36 @@ export type ScrapeResult = {
   content: string; // Markdown
 };
 
-async function getFirecrawlClient() {
+async function firecrawlFetch(url: string): Promise<{ markdown: string; metadata: any }> {
   const apiKey = await getDecryptedCredential("web_scraping", "firecrawl");
   if (!apiKey) throw new Error("API Key Firecrawl belum dikonfigurasi di Platform Vault.");
-  const { default: Firecrawl } = await import("@mendable/firecrawl-js");
-  return new Firecrawl({ apiKey });
+
+  const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Firecrawl API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  if (!data.success) throw new Error(data.error || "Scraping gagal.");
+
+  return {
+    markdown: data.data?.markdown ?? "",
+    metadata: data.data?.metadata ?? {},
+  };
 }
 
 export async function scrapeArticle(url: string): Promise<ScrapeResult> {
-  const client = await getFirecrawlClient();
-  const result = await (client as any).scrapeUrl(url, { formats: ["markdown"] });
+  const result = await firecrawlFetch(url);
 
-  if (!result?.markdown) throw new Error(`Gagal scrape konten dari: ${url}`);
+  if (!result.markdown) throw new Error(`Gagal scrape konten dari: ${url}`);
 
   return {
     sourceUrl: result.metadata?.sourceURL ?? url,
@@ -27,11 +45,7 @@ export async function scrapeArticle(url: string): Promise<ScrapeResult> {
 }
 
 export async function scrapeArticles(urls: string[]): Promise<ScrapeResult[]> {
-  const client = await getFirecrawlClient();
-
-  const settled = await Promise.allSettled(
-    urls.map((url) => (client as any).scrapeUrl(url, { formats: ["markdown"] }))
-  );
+  const settled = await Promise.allSettled(urls.map((url) => firecrawlFetch(url)));
 
   return settled
     .map((r, i) => ({ r, url: urls[i] }))

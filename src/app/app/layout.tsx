@@ -1,15 +1,14 @@
 import SignOutButton from "@/components/SignOutButton";
 import SidebarNav from "@/components/SidebarNav";
 import Link from "next/link";
-import { auth } from "@/auth";
+import { getSession } from "@/lib/session";
 import { getTenantAddons } from "@/app/actions/addons";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
-  const user = session?.user as any;
+  const session = await getSession();
 
-  const { addons } = user?.tenantId
-    ? await getTenantAddons(user.tenantId)
+  const { addons } = session?.tenantId
+    ? await getTenantAddons(session.tenantId)
     : { addons: [] };
 
   const activeAddonIds = (addons ?? [])
@@ -31,20 +30,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4">
-          <SidebarNav role={user?.role} activeAddonIds={activeAddonIds} />
+          <SidebarNav role={(session?.role ?? undefined) as import("@/lib/auth/capabilities").Role | undefined} activeAddonIds={activeAddonIds} />
         </nav>
 
         {/* User footer */}
         <div className="border-t border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-black flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-              {user?.displayName?.[0] || user?.name?.[0] || "U"}
+              {session?.name?.[0] || "U"}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                {user?.displayName || user?.name || "User"}
+                {session?.name || "User"}
               </p>
-              <p className="text-xs text-gray-500 truncate">{user?.role}</p>
+              <p className="text-xs text-gray-500 truncate">{session?.role}</p>
             </div>
             <SignOutButton />
           </div>

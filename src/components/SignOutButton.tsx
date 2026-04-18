@@ -3,8 +3,17 @@
 import { logout } from "@/app/actions/login";
 
 export default function SignOutButton() {
+  async function handleLogout(e: React.FormEvent) {
+    e.preventDefault();
+    await logout();
+    // Gunakan window.location.href agar middleware rewrite /login → /app-login
+    // berjalan dengan benar (pelajaran dari ANTIGRAVITI: redirect() Server Action
+    // kadang tidak trigger rewrite middleware pada request pertama)
+    window.location.href = "/login";
+  }
+
   return (
-    <form action={logout}>
+    <form onSubmit={handleLogout}>
       <button
         type="submit"
         title="Keluar"

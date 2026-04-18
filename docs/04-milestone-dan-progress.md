@@ -41,6 +41,18 @@ Dokumen ini secara komprehensif melacak rekam jejak penyelesaian fitur dan berfu
 
 ---
 
+## ✅ Add-on: AI Insights (Selesai — 18 Apr 2026)
+
+*Seluruh alur riset konten & generate artikel via AI telah berjalan end-to-end.*
+
+- **Saved Insights → Jadikan Artikel**: `dispatchInsightGeneration` scrape URL sumber, kirim ke AI, ekstrak `<h1>` sebagai judul post, simpan `{ html: bodyHtml }` ke DB, redirect ke editor. Judul yang tampil di editor = judul buatan AI, bukan topik insight.
+- **News Insight & Competitor Monitor → Buat Artikel**: `scrapeAndGenerateArticle` scrape URL via Firecrawl REST API, generate AI, ekstrak `<h1>` server-side, simpan ke `sessionStorage`, redirect ke editor baru. Judul & konten terisi otomatis.
+- **Perbaikan Firecrawl**: Dua implementasi Firecrawl yang inkonsisten (SDK vs REST) dikonsolidasi — `src/lib/scraper/firecrawl.ts` diubah ke raw `fetch` sehingga konsisten dengan `src/lib/insight-providers/firecrawl.ts`.
+- **Error handling**: `scrapeAndGenerateArticle` kini punya `try/catch` penuh — error dikembalikan sebagai `{ success: false, error }` bukan throw (eliminasi 500).
+- **Content normalizer editor**: `posts/editor/page.tsx` handle format lama `{ id: html, en: '' }` dan format insight `{ html: string }` agar Tiptap tidak tampilkan "Invalid content".
+
+---
+
 ## 🟡 MILESTONE 3: Front-End Publik (Fokus Saat Ini)
 *Fase mendesain paras website. Mengonversi data mentah dari mesin CMS menjadi portal berita yang dapat dinikmati pengunjung.*
 
