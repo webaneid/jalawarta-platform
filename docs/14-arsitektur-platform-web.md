@@ -194,8 +194,10 @@ export const apiCredentials = pgTable("api_credentials", {
 | `/platform/modules` | `modules/page.tsx` | `ModulesClient` | ✅ Selesai | Terhubung ke packages DB, 5 module cards |
 | `/platform/tenants` | `tenants/page.tsx` | `TenantsClient` | ✅ Selesai | Filter status, inline status changer |
 | `/platform/tenants/[id]` | `tenants/[id]/page.tsx` | `TenantDetailClient` | ✅ Selesai | Detail, kelola paket & status, tim, add-on |
-| `/platform/tenants/new` | — | `CreateTenantClient` | 🔴 Proposal F3 | Form onboarding tenant baru |
-| `/platform/transactions` | — | `TransactionsClient` | 🟠 Proposal F4 | Manajemen tagihan & verifikasi bayar |
+| `/platform/tenants/new` | `tenants/new/page.tsx` | `CreateTenantClient` | ✅ Selesai | Form onboarding tenant baru |
+| `/platform/payment-methods` | `payment-methods/page.tsx` | `PaymentMethodsClient` | ✅ Selesai | CRUD rekening bank & QRIS platform |
+| `/platform/transactions` | `transactions/page.tsx` | `TransactionsClient` | ✅ Selesai | Manajemen tagihan & verifikasi bayar |
+| `/api/qris/[txId]` | Route Handler | — | 🟡 Proposal F6 | Generate QR dinamis per transaksi. Lihat [`24-arsitektur-qris.md`] |
 
 ---
 
@@ -648,7 +650,8 @@ Lihat struktur `tenantBankAccounts` di Section 8.2.3.
 | ✅ | **F3 — Create Tenant Form** | `/platform/tenants/new` + `createTenant()` action (buat user + tenant + member sekaligus) | M |
 | ✅ | **F4 — Transactions & Payment Methods** | `/platform/payment-methods` CRUD + `/platform/transactions` + verifikasi manual | L |
 | ✅ | **F5 — Billing Tenant** | `/settings/billing` — tenant lihat tagihan sendiri & upload bukti bayar | M |
-| 🟡 | **F6 — Payment Gateway** | Integrasi Midtrans atau Xendit — webhook otomatis, API Key via Vault | XL |
+| 🟡 | **F6 — QRIS Dynamic Nominal** | EMV payload inject, QR generator, billing UI — tanpa payment gateway. **Baca [`docs/24-arsitektur-qris.md`]** sebelum eksekusi. | M |
+| ⬜ | **F7 — Payment Gateway** | Integrasi Midtrans atau Xendit — webhook otomatis, API Key via Vault | XL |
 
 **Dependency F4:** Platform Admin harus set up minimal 1 metode pembayaran (`/platform/payment-methods`) sebelum bisa buat transaksi yang mengarahkan tenant ke metode bayar yang tepat.
 

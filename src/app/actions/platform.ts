@@ -258,6 +258,7 @@ export async function addPlatformPaymentMethod(data: {
   accountName?: string;
   qrisImage?: string;
   qrisProvider?: string;
+  emvPayload?: string;
 }) {
   try {
     await verifySuperAdmin();
@@ -269,6 +270,7 @@ export async function addPlatformPaymentMethod(data: {
       accountName: data.accountName ?? null,
       qrisImage: data.qrisImage ?? null,
       qrisProvider: data.qrisProvider ?? null,
+      emvPayload: data.emvPayload ?? null,
     });
     revalidatePath("/platform/payment-methods");
     return { success: true };

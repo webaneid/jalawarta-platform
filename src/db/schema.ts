@@ -385,8 +385,9 @@ export const platformPaymentMethods = pgTable("platform_payment_methods", {
   accountNumber: text("account_number"),
   accountName: text("account_name"),
   // Untuk qris:
-  qrisImage: text("qris_image"),    // URL gambar QRIS
+  qrisImage: text("qris_image"),       // URL gambar QRIS statis (fallback display)
   qrisProvider: text("qris_provider"), // e.g. "GoPay", "DANA", "Universal"
+  emvPayload: text("emv_payload"),     // EMV TLV payload string dari QRIS statis GoPay/GoBiz
   // Umum:
   label: text("label").notNull(),   // e.g. "BCA Utama", "QRIS Gopay"
   isActive: boolean("is_active").default(true),
