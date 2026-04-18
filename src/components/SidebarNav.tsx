@@ -264,6 +264,19 @@ export default function SidebarNav({ role = "SUBSCRIBER", activeAddonIds = [] }:
             </svg>
             Settings
           </Link>
+          <Link
+            href="/settings/billing"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group ${
+              pathname === "/settings/billing"
+                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-900"
+            }`}
+          >
+            <svg className="w-4 h-4 text-gray-400 group-hover:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+            </svg>
+            Tagihan & Pembayaran
+          </Link>
         </li>
       )}
     </ul>

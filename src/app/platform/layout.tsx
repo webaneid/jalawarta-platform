@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
-import { IconPackage, IconPlugConnected, IconUsersGroup, IconDashboard, IconBox, IconShieldLock } from "@tabler/icons-react";
+import { IconPackage, IconPlugConnected, IconUsersGroup, IconDashboard, IconBox, IconShieldLock, IconBuildingBank, IconReceipt } from "@tabler/icons-react";
 
 export default async function PlatformLayout({
   children,
@@ -30,6 +30,8 @@ export default async function PlatformLayout({
     { name: "Add-on Marketplace", href: "/platform/addons", icon: IconPlugConnected },
     { name: "API Key Vault", href: "/platform/api-keys", icon: IconShieldLock },
     { name: "Semua Tenants", href: "/platform/tenants", icon: IconUsersGroup },
+    { name: "Transaksi", href: "/platform/transactions", icon: IconReceipt },
+    { name: "Metode Pembayaran", href: "/platform/payment-methods", icon: IconBuildingBank },
   ];
 
   return (

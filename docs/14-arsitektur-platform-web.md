@@ -272,53 +272,54 @@ Sistem ini mencakup **3 area besar** yang saling terhubung:
 
 ---
 
-### 8.2 Perubahan Skema Database
+### 8.2 Arsitektur Sistem Pembayaran — 3 Lapisan
 
-#### 8.2.1 Perluasan `schemaConfig` JSONB di tabel `tenants`
+Sistem pembayaran Jala Warta beroperasi dalam **2 arah** yang berbeda:
 
-Tidak perlu kolom baru — semua data ekstensif disimpan di `schemaConfig` (JSONB yang sudah ada).
-Struktur penuh `schemaConfig` yang diusulkan:
+```
+┌─────────────────────────────────────────────────────────┐
+│  ARAH 1: Tenant → Platform (Subscription SaaS)          │
+│  Tenant membayar biaya langganan ke platform            │
+│                                                         │
+│  Metode:                                                │
+│  A. QRIS Internal   — scan QRIS milik platform          │
+│  B. Transfer Bank   — ke rekening-rekening platform     │
+│  C. Payment Gateway — Midtrans/Xendit (otomatis)        │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  ARAH 2: Reader → Tenant (Donasi / Konten Premium)      │
+│  Pembaca membayar ke portal berita tenant               │
+│  Dikelola di: /settings Tab Pembayaran                  │
+│  Disimpan di: tenants.schemaConfig JSONB                │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### 8.2.1 Tabel Baru: `platform_payment_methods`
+
+Menyimpan metode pembayaran **milik platform** (QRIS & rekening bank). Bisa ditambah dan dikurangi oleh Platform Admin.
 
 ```typescript
-type TenantSchemaConfig = {
-  // === IDENTITAS ===
-  logo: string;             // URL gambar logo (dari Media Library)
-  slogan: string;           // Tagline singkat situs
-  description: string;      // Deskripsi panjang / "Tentang Kami"
-  favicon: string;          // URL favicon
+export const platformPaymentMethods = pgTable("platform_payment_methods", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  type: text("type").notNull(),
+  // "bank_transfer" | "qris"
+  // (payment gateway dikonfigurasi terpisah via API Key Vault)
 
-  // === KONTAK ===
-  contactEmail: string;
-  contactPhone: string;
-  address: string;
-  city: string;
-  province: string;
-  postalCode: string;
+  // Untuk type "bank_transfer":
+  bankName: text("bank_name"),           // e.g. "BCA", "Mandiri", "BNI"
+  accountNumber: text("account_number"), // No. rekening
+  accountName: text("account_name"),     // Nama pemilik rekening
 
-  // === SOSIAL MEDIA ===
-  socialInstagram: string;  // handle atau URL penuh
-  socialX: string;          // (Twitter/X)
-  socialFacebook: string;
-  socialYoutube: string;
-  socialTiktok: string;
-  socialLinkedin: string;
+  // Untuk type "qris":
+  qrisImage: text("qris_image"),         // URL gambar QRIS (dari Media Library platform)
+  qrisProvider: text("qris_provider"),   // e.g. "GoPay", "OVO", "DANA", "Universal"
 
-  // === PEMBAYARAN & BISNIS ===
-  businessName: string;     // Nama badan usaha / PT / CV
-  npwp: string;             // NPWP opsional
-  bankName: string;         // e.g. "BCA", "Mandiri"
-  bankAccountNumber: string;
-  bankAccountName: string;  // Nama pemilik rekening
-  qrisImage: string;        // URL gambar QRIS (dari Media Library)
-
-  // === TEKNIS (sudah ada, dipertahankan) ===
-  timezone: string;         // e.g. "Asia/Jakarta"
-  maintenanceMode: boolean;
-  seoIndexing: boolean;     // Apakah boleh diindex search engine
-  footerText: string;
-  language: string;         // "id" | "en"
-  themeColor: string;       // Primary color hex, e.g. "#2563EB"
-};
+  label: text("label"),                  // Label tampilan, e.g. "BCA Utama", "QRIS Gopay"
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 ```
 
 #### 8.2.2 Tabel Baru: `transactions`
@@ -334,27 +335,141 @@ export const transactions = pgTable("transactions", {
   amount: integer("amount").notNull(),                      // Rupiah
   periodMonths: integer("period_months").default(1),        // Durasi berlangganan
 
-  // Status & metode pembayaran
-  status: text("status").notNull().default("PENDING"),
-  // "PENDING" | "PAID" | "EXPIRED" | "CANCELLED"
+  // Metode pembayaran yang digunakan
   paymentMethod: text("payment_method"),
-  // "bank_transfer" | "qris" | "midtrans" | "xendit" | "manual"
-  paymentProof: text("payment_proof"),                      // URL bukti transfer (dari Media Library)
-  paymentNotes: text("payment_notes"),                      // Catatan admin
+  // "bank_transfer" | "qris" | "gateway"
+  paymentMethodId: text("payment_method_id"),
+  // → FK ke platform_payment_methods.id (untuk bank/qris)
+  // → null jika gateway (dilacak via gatewayRef)
+  gatewayProvider: text("gateway_provider"),  // "midtrans" | "xendit" | null
+  gatewayRef: text("gateway_ref"),            // ID transaksi dari gateway
+
+  // Status & bukti
+  status: text("status").notNull().default("PENDING"),
+  // "PENDING" | "AWAITING_VERIFICATION" | "PAID" | "EXPIRED" | "CANCELLED"
+  paymentProof: text("payment_proof"),        // URL screenshot/bukti transfer
+  paymentNotes: text("payment_notes"),        // Catatan admin saat verifikasi
 
   // Timestamps
   dueDate: timestamp("due_date"),
   paidAt: timestamp("paid_at"),
   createdAt: timestamp("created_at").defaultNow(),
-  createdBy: text("created_by"),                            // userId platform admin
+  createdBy: text("created_by"),              // userId platform admin
 });
+```
+
+**Status Flow:**
+```
+PENDING → tenant pilih metode bayar
+       ↓
+AWAITING_VERIFICATION → tenant upload bukti (bank/QRIS)
+       ↓                   ATAU gateway menunggu konfirmasi
+  PAID (admin verif manual, atau webhook gateway)
+       ↓
+  tenant.subscriptionStatus → "ACTIVE"
+```
+
+#### 8.2.3 Perluasan `schemaConfig` JSONB di tabel `tenants`
+
+Tidak perlu kolom baru — semua data ekstensif masuk `schemaConfig` (JSONB yang sudah ada).
+
+```typescript
+type TenantSchemaConfig = {
+  // === IDENTITAS ===
+  logo: string;             // URL gambar logo (dari Media Library)
+  slogan: string;           // Tagline singkat situs
+  description: string;      // Deskripsi panjang / "Tentang Kami"
+  favicon: string;          // URL favicon (sudah ada)
+  themeColor: string;       // Primary color hex, e.g. "#2563EB"
+
+  // === KONTAK ===
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  city: string;
+  province: string;
+  postalCode: string;
+
+  // === SOSIAL MEDIA ===
+  socialInstagram: string;  // Handle atau URL profil
+  socialX: string;          // (Twitter/X)
+  socialFacebook: string;
+  socialYoutube: string;
+  socialTiktok: string;
+  socialLinkedin: string;
+
+  // === PEMBAYARAN TENANT → READER (donasi/langganan konten) ===
+  businessName: string;     // Nama badan usaha / PT / CV
+  npwp: string;             // NPWP opsional
+  // Rekening tenant (untuk terima donasi dari pembaca):
+  tenantBankAccounts: Array<{
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    label?: string;         // e.g. "Rekening Donasi"
+  }>;
+  tenantQrisImage: string;  // URL QRIS tenant (terima dari pembaca)
+
+  // === TEKNIS (sudah ada, dipertahankan) ===
+  timezone: string;         // e.g. "Asia/Jakarta" (sudah ada)
+  maintenanceMode: boolean; // (sudah ada)
+  seoIndexing: boolean;
+  footerText: string;       // (sudah ada)
+  language: string;         // "id" | "en"
+};
 ```
 
 ---
 
 ### 8.3 Area A — Platform Admin: Tenant Onboarding & Transaksi
 
-#### 8.3.1 Form Registrasi Tenant Baru (`/platform/tenants/new`)
+#### 8.3.1 Manajemen Metode Pembayaran Platform (`/platform/payment-methods`)
+
+**Halaman baru** — Platform Admin kelola rekening bank dan QRIS yang ditampilkan ke tenant saat membayar.
+
+**UI:**
+- List semua metode aktif (bank transfer & QRIS) dengan drag-to-reorder
+- Tombol "Tambah Rekening Bank" → modal form
+- Tombol "Upload QRIS Baru" → modal image picker (dari Media Library)
+- Toggle aktif/nonaktif per item
+- Tombol hapus (dengan konfirmasi)
+
+**Modal Tambah Rekening Bank:**
+```
+· Nama Bank   : dropdown (BCA, Mandiri, BNI, BRI, BSI, CIMB, dll + "Lainnya")
+· No. Rekening: text input
+· Atas Nama   : text input
+· Label       : text input (e.g. "Rekening Utama", "Rekening Cadangan")
+```
+
+**Modal Tambah QRIS:**
+```
+· Provider QRIS: text (e.g. "GoPay", "OVO", "DANA", "Universal QRIS")
+· Gambar QRIS  : image picker → URL dari Media Library
+· Label        : text (e.g. "QRIS Gopay Jala Warta")
+```
+
+**Server Actions:**
+```typescript
+getPlatformPaymentMethods()
+addPlatformPaymentMethod(data: {
+  type: "bank_transfer" | "qris";
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
+  qrisImage?: string;
+  qrisProvider?: string;
+  label: string;
+})
+updatePlatformPaymentMethod(id, data)
+togglePlatformPaymentMethod(id, isActive)
+deletePlatformPaymentMethod(id)
+reorderPlatformPaymentMethods(orderedIds: string[])
+```
+
+---
+
+#### 8.3.2 Form Registrasi Tenant Baru (`/platform/tenants/new`)
 
 Platform Admin membuat tenant baru secara manual (bukan self-signup).
 
@@ -372,56 +487,63 @@ Langganan:
   · Status Awal: TRIAL / ACTIVE
   · Durasi Trial (hari)
 
-Catatan Internal (opsional):
-  · Catatan Admin (tidak terlihat tenant)
+Catatan Internal (opsional)
 ```
 
-**Server Actions yang dibutuhkan:**
-```typescript
-createTenant(data: {
-  siteName: string;
-  subdomain: string;
-  ownerName: string;
-  ownerEmail: string;
-  ownerPassword: string;      // akan di-hash bcrypt
-  packageId: string | null;
-  subscriptionStatus: string;
-  adminNotes?: string;
-}) → { success, tenantId, userId }
-```
+**Alur Server Action `createTenant()`:**
+1. Validasi subdomain unik (query DB)
+2. Hash password dengan bcrypt
+3. Insert `user` (role: TENANT_OWNER)
+4. Insert `tenant` (ownerId = userId baru)
+5. Insert `tenantMembers` (role: SUPER_ADMIN)
+6. Jika paket dipilih → buat `transaction` (status: PENDING) otomatis
+7. `revalidatePath("/platform/tenants")`
 
-**Alur:**
-1. Validasi subdomain unik
-2. Insert `user` (hash password bcrypt)
-3. Insert `tenant` (ownerId = userId baru)
-4. Insert `tenantMembers` (role: SUPER_ADMIN)
-5. Jika paket dipilih → buat `transaction` (PENDING) otomatis
-6. `revalidatePath("/platform/tenants")`
+---
 
-#### 8.3.2 Manajemen Transaksi (`/platform/transactions`)
+#### 8.3.3 Manajemen Transaksi (`/platform/transactions`)
 
 Halaman daftar semua tagihan & transaksi lintas tenant.
 
 **UI:**
-- Tabel: Invoice No, Tenant, Paket, Amount, Status, Due Date, Aksi
-- Filter: status (PENDING / PAID / EXPIRED / CANCELLED), bulan
-- Tombol: "Buat Tagihan Manual" (per tenant), "Tandai Lunas", "Upload Bukti"
+- Tabel: Invoice No, Tenant, Paket, Jumlah, Metode, Status, Jatuh Tempo, Aksi
+- Filter: status (PENDING / AWAITING_VERIFICATION / PAID / EXPIRED / CANCELLED)
+- Filter: per tenant (dropdown)
+- Tombol "Buat Tagihan" → modal (pilih tenant, paket, durasi, metode yang diharapkan)
+- Per baris: tombol "Verifikasi" (jika AWAITING_VERIFICATION) atau "Detail"
+
+**Detail / Verifikasi Transaksi (`/platform/transactions/[id]`):**
+- Tampilkan info tagihan lengkap
+- Tampilkan bukti bayar yang diupload tenant (jika ada)
+- Tombol "Tandai Lunas" → set `status = "PAID"`, `paidAt = now()`, update `tenant.subscriptionStatus = "ACTIVE"`
+- Tombol "Batalkan" → set `status = "CANCELLED"`
+- Input catatan verifikasi
 
 **Server Actions:**
 ```typescript
-getTransactions(filter?: { status?, tenantId? })
-createTransaction(tenantId, packageId, periodMonths)
-markTransactionPaid(transactionId, paymentMethod, proof?)
-cancelTransaction(transactionId)
+getTransactions(filter?: { status?: string; tenantId?: string })
+getTransactionDetail(id: string)
+createTransaction(data: {
+  tenantId: string;
+  packageId: string;
+  periodMonths: number;
+  paymentMethod: "bank_transfer" | "qris" | "gateway";
+  paymentMethodId?: string;  // FK ke platform_payment_methods
+})
+markTransactionPaid(id: string, notes?: string)
+cancelTransaction(id: string)
 ```
 
-#### 8.3.3 Verifikasi Pembayaran Manual
+---
 
-Untuk QRIS & bank transfer, Platform Admin:
-1. Membuat invoice dari `/platform/transactions`
-2. Tenant membayar (transfer / scan QRIS)
-3. Tenant upload bukti di settings mereka ATAU Platform Admin upload langsung
-4. Platform Admin klik "Tandai Lunas" → `transactions.status = "PAID"`, tenant `subscriptionStatus = "ACTIVE"`
+#### 8.3.4 Payment Gateway — Fase Lanjut
+
+Integrasi **Midtrans** atau **Xendit** untuk pembayaran otomatis (tidak perlu verifikasi manual).
+
+- API Key disimpan di API Key Vault (kategori: `payment_gateway`, provider: `midtrans` / `xendit`)
+- Saat tenant memilih "Bayar via Gateway" → hit Midtrans/Xendit API → redirect ke halaman bayar
+- Webhook dari gateway → `markTransactionPaid()` otomatis
+- Status transaction: PENDING → langsung PAID (tanpa AWAITING_VERIFICATION)
 
 ---
 
@@ -464,16 +586,23 @@ Halaman `/settings` di CMS tenant direfactor menjadi **tab-based layout**.
 
 #### Tab 4 — Pembayaran & Bisnis
 
-Digunakan untuk keperluan tampilan di frontend publik (footer, halaman donasi, dll).
+Digunakan untuk keperluan tampilan di frontend publik (footer, halaman donasi, konten premium). **Ini adalah rekening milik tenant untuk menerima dari pembaca** — bukan pembayaran subscription ke platform.
 
 | Field | Tipe | Keterangan |
 |---|---|---|
 | Nama Badan Usaha | text | `schemaConfig.businessName` |
 | NPWP | text | `schemaConfig.npwp` (opsional) |
-| Nama Bank | text | `schemaConfig.bankName` |
-| No. Rekening | text | `schemaConfig.bankAccountNumber` |
-| Nama Pemilik Rekening | text | `schemaConfig.bankAccountName` |
-| Gambar QRIS | image picker | `schemaConfig.qrisImage` (dari Media Library) |
+| Rekening Bank | list + modal | `schemaConfig.tenantBankAccounts[]` — bisa tambah / hapus per rekening |
+| QRIS Tenant | image picker | `schemaConfig.tenantQrisImage` (dari Media Library) |
+
+**Rekening bank bersifat list** — tenant bisa punya lebih dari satu rekening (misalnya BCA, Mandiri, BSI). Setiap entri memiliki:
+```
+· Nama Bank     : text (BCA, Mandiri, BNI, BSI, dll)
+· No. Rekening  : text
+· Atas Nama     : text
+· Label         : text opsional (e.g. "Rekening Donasi", "Rekening Utama")
+```
+Lihat struktur `tenantBankAccounts` di Section 8.2.3.
 
 #### Tab 5 — Teknis & Preferensi
 
@@ -499,6 +628,7 @@ Digunakan untuk keperluan tampilan di frontend publik (footer, halaman donasi, d
 | `/platform/tenants/new` | `CreateTenantClient` | Form onboarding tenant baru |
 | `/platform/transactions` | `TransactionsClient` | Daftar semua transaksi |
 | `/platform/transactions/[id]` | `TransactionDetailClient` | Detail + verifikasi pembayaran |
+| `/platform/payment-methods` | `PaymentMethodsClient` | CRUD rekening bank & QRIS milik platform |
 
 #### Tenant CMS (`app.localhost`)
 
@@ -513,12 +643,14 @@ Digunakan untuk keperluan tampilan di frontend publik (footer, halaman donasi, d
 
 | | Fase | Scope | Effort |
 |---|---|---|---|
-| 🔴 | **F1 — DB Migration** | Tambah tabel `transactions`, extend `schemaConfig` type | XS |
-| 🔴 | **F2 — Tenant Settings Tab** | Refactor `/settings` jadi 5 tab, simpan semua field baru ke `schemaConfig` | M |
-| 🟠 | **F3 — Create Tenant Form** | `/platform/tenants/new` + `createTenant()` action (buat user + tenant + member sekaligus) | M |
-| 🟠 | **F4 — Transactions Platform** | `/platform/transactions` + CRUD actions + verifikasi manual | L |
-| 🟡 | **F5 — Billing Tenant** | `/settings/billing` — tenant lihat tagihan & upload bukti bayar | M |
-| 🟡 | **F6 — Payment Gateway** | Integrasi Midtrans atau Xendit untuk QRIS otomatis (fase lanjut) | XL |
+| ✅ | **F1 — DB Migration** | Tambah tabel `transactions` + `platform_payment_methods` ke Drizzle schema + push | XS |
+| ✅ | **F2 — Tenant Settings Tab** | Refactor `/settings` jadi 5 tab, simpan semua field baru ke `schemaConfig` JSONB | M |
+| ✅ | **F3 — Create Tenant Form** | `/platform/tenants/new` + `createTenant()` action (buat user + tenant + member sekaligus) | M |
+| ✅ | **F4 — Transactions & Payment Methods** | `/platform/payment-methods` CRUD + `/platform/transactions` + verifikasi manual | L |
+| ✅ | **F5 — Billing Tenant** | `/settings/billing` — tenant lihat tagihan sendiri & upload bukti bayar | M |
+| 🟡 | **F6 — Payment Gateway** | Integrasi Midtrans atau Xendit — webhook otomatis, API Key via Vault | XL |
+
+**Dependency F4:** Platform Admin harus set up minimal 1 metode pembayaran (`/platform/payment-methods`) sebelum bisa buat transaksi yang mengarahkan tenant ke metode bayar yang tepat.
 
 ---
 

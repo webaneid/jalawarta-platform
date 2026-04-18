@@ -48,7 +48,8 @@ export default function TenantsClient({ tenants }: { tenants: Tenant[] }) {
 
   return (
     <div className="space-y-5">
-      {/* Filter bar */}
+      {/* Filter bar + action */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
       <div className="flex gap-2 flex-wrap">
         {["ALL", ...STATUS_OPTIONS].map((s) => (
           <button
@@ -63,6 +64,13 @@ export default function TenantsClient({ tenants }: { tenants: Tenant[] }) {
             {s === "ALL" ? `Semua (${tenants.length})` : `${s} (${tenants.filter((t) => t.subscriptionStatus === s).length})`}
           </button>
         ))}
+      </div>
+        <Link
+          href="/platform/tenants/new"
+          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors whitespace-nowrap"
+        >
+          + Buat Tenant Baru
+        </Link>
       </div>
 
       {errorMsg && (

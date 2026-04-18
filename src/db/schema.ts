@@ -375,6 +375,50 @@ export const contentStrategies = pgTable("content_strategies", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ── Platform Payment Methods ─────────────────────────────────
+// Rekening bank & QRIS milik platform, ditampilkan ke tenant saat bayar subscription
+export const platformPaymentMethods = pgTable("platform_payment_methods", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  type: text("type").notNull(), // "bank_transfer" | "qris"
+  // Untuk bank_transfer:
+  bankName: text("bank_name"),
+  accountNumber: text("account_number"),
+  accountName: text("account_name"),
+  // Untuk qris:
+  qrisImage: text("qris_image"),    // URL gambar QRIS
+  qrisProvider: text("qris_provider"), // e.g. "GoPay", "DANA", "Universal"
+  // Umum:
+  label: text("label").notNull(),   // e.g. "BCA Utama", "QRIS Gopay"
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── Transactions ─────────────────────────────────────────────
+// Tagihan subscription tenant ke platform
+export const transactions = pgTable("transactions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  packageId: text("package_id").references(() => packages.id, { onDelete: "set null" }),
+  invoiceNumber: text("invoice_number").unique().notNull(), // e.g. "INV-2026-0001"
+  amount: integer("amount").notNull(),          // Rupiah
+  periodMonths: integer("period_months").default(1),
+  // Metode bayar:
+  paymentMethod: text("payment_method"),        // "bank_transfer" | "qris" | "gateway"
+  paymentMethodId: text("payment_method_id").references(() => platformPaymentMethods.id, { onDelete: "set null" }),
+  gatewayProvider: text("gateway_provider"),    // "midtrans" | "xendit" | null
+  gatewayRef: text("gateway_ref"),
+  // Status & bukti:
+  status: text("status").notNull().default("PENDING"),
+  // "PENDING" | "AWAITING_VERIFICATION" | "PAID" | "EXPIRED" | "CANCELLED"
+  paymentProof: text("payment_proof"),          // URL screenshot bukti
+  paymentNotes: text("payment_notes"),
+  dueDate: timestamp("due_date"),
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+});
+
 // ── Relasi ────────────────────────────────────────────────────
 export const usersRelations = relations(users, ({ many }) => ({
   tenantMembers: many(tenantMembers),
@@ -503,4 +547,11 @@ export const socialResultsRelations = relations(socialResults, ({ one }) => ({
 export const contentStrategiesRelations = relations(contentStrategies, ({ one }) => ({
   tenant: one(tenants, { fields: [contentStrategies.tenantId], references: [tenants.id] }),
   search: one(socialSearches, { fields: [contentStrategies.searchId], references: [socialSearches.id] }),
+}));
+
+export const transactionsRelations = relations(transactions, ({ one }) => ({
+  tenant: one(tenants, { fields: [transactions.tenantId], references: [tenants.id] }),
+  package: one(packages, { fields: [transactions.packageId], references: [packages.id] }),
+  paymentMethodRef: one(platformPaymentMethods, { fields: [transactions.paymentMethodId], references: [platformPaymentMethods.id] }),
+  creator: one(users, { fields: [transactions.createdBy], references: [users.id] }),
 }));
