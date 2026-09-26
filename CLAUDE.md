@@ -37,6 +37,14 @@ Selalu baca dokumen arsitektur relevan **sebelum** mengimplementasikan atau meng
 | [`22-arsitektur-addon-standar.md`](./docs/22-arsitektur-addon-standar.md) | **WAJIB BACA** — Blueprint standar membangun add-on baru (Inject & Feature), checklist lengkap |
 | [`23-arsitektur-firecrawl.md`](./docs/23-arsitektur-firecrawl.md) | **WAJIB BACA** — Web Scraping Engine: Firecrawl integration, alur URL→scrape→AI, API Vault |
 
+### Dokumen Proses & Engineering (dibaca sebelum mulai task baru)
+
+| File | Topik |
+|---|---|
+| [`docs/SOP.md`](./docs/SOP.md) | **WAJIB BACA** — Alur kerja 5 langkah per fitur (plan → eksekusi → typecheck → security → tutup) |
+| [`docs/WORKFLOW-MODES.md`](./docs/WORKFLOW-MODES.md) | Kapan pakai Plan Mode / Auto Mode / subagent — hemat token |
+| [`docs/conventions.md`](./docs/conventions.md) | Naming DB/TS/file, branch strategy, format commit |
+
 ---
 
 ## Peta Sistem
