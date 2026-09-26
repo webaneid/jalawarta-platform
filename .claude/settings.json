@@ -4,6 +4,7 @@
       {
         "matcher": "Edit|Write",
         "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/adr-guard.sh" },
           { "type": "command", "command": "bash .claude/hooks/pre-commit-guard.sh" }
         ]
       },

@@ -6,6 +6,12 @@ hasilnya via exit code, selalu konsisten tanpa tergantung ingatan Claude.
 
 ## Daftar Hook
 
+### adr-guard.sh (PreToolUse: Edit/Write)
+**Hard block (exit 2)** — cegah edit file `docs/decisions/adr-*.md` yang statusnya
+sudah `Accepted`. ADR bersifat immutable setelah Accepted — kalau keputusan berubah,
+buat ADR baru + tandai `Supersedes`/`Superseded by`. File template dan ADR yang
+belum ada (masih ditulis baru) tidak kena block.
+
 ### secret-scan.sh (PostToolUse: Edit/Write)
 **Hard block (exit 2)** — deteksi secret ter-hardcode di file yang diedit.
 Cakupan: `.ts`, `.tsx`, `.env*`, `.json`, `.yml`, `.yaml`, `.md`, `.sh`.

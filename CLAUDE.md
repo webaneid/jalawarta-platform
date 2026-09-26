@@ -44,6 +44,7 @@ Selalu baca dokumen arsitektur relevan **sebelum** mengimplementasikan atau meng
 | [`docs/SOP.md`](./docs/SOP.md) | **WAJIB BACA** — Alur kerja 5 langkah per fitur (plan → eksekusi → typecheck → security → tutup) |
 | [`docs/WORKFLOW-MODES.md`](./docs/WORKFLOW-MODES.md) | Kapan pakai Plan Mode / Auto Mode / subagent — hemat token |
 | [`docs/conventions.md`](./docs/conventions.md) | Naming DB/TS/file, branch strategy, format commit |
+| [`docs/decisions/`](./docs/decisions/) | ADR — keputusan arsitektur besar yang sudah diambil (immutable setelah Accepted) |
 
 ---
 
