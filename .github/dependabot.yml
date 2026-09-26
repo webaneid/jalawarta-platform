@@ -1,0 +1,33 @@
+# .github/dependabot.yml
+# Update dependency PROAKTIF lewat PR otomatis — pelengkap "bun audit" yang
+# reaktif (baru tahu ada vulnerability setelah lama terpasang). Dependabot
+# dipilih karena native GitHub, zero setup tambahan.
+#
+# Minor + patch di-group jadi 1 PR per minggu (kurangi noise).
+# Major tetap terpisah per-package (sering breaking change, butuh review manual).
+
+version: 2
+updates:
+  # Dependencies Next.js monolith (root)
+  - package-ecosystem: "npm"   # Dependabot belum support "bun" native, tapi baca bun.lock
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # GitHub Actions versions (actions/checkout, oven-sh/setup-bun, dst)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore"
+      include: "scope"

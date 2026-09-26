@@ -1,0 +1,66 @@
+name: Deploy
+
+# Trigger manual via GitHub Actions UI ("Run workflow") atau otomatis setelah
+# push ke main yang lolos ci.yml. Untuk deployment awal atau hotfix, pakai
+# workflow_dispatch. Untuk flow reguler (PR merge → main), aktifkan push trigger.
+#
+# SEBELUM PAKAI: setup GitHub Secrets berikut di Settings → Secrets:
+#   SERVER_HOST       — IP atau hostname VPS
+#   SERVER_USER       — user SSH (contoh: deploy)
+#   SERVER_SSH_KEY    — private key SSH (seluruh isi file id_ed25519 atau id_rsa)
+#   SERVER_APP_DIR    — path folder app di server (contoh: /var/www/jalawarta-platform)
+
+on:
+  workflow_dispatch:   # aktifkan manual dulu — uncomment push trigger kalau sudah siap
+  # push:
+  #   branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check (gate — deploy dibatalkan kalau gagal)
+        run: bun run typecheck
+
+      - name: Lint (gate)
+        run: bun run lint
+
+      - name: Secret scan (gate — jangan deploy kalau ada secret ter-hardcode)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.SERVER_APP_DIR }}
+
+            echo "→ Pull latest dari main..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "→ Install dependencies..."
+            bun install --frozen-lockfile
+
+            echo "→ Build Next.js..."
+            bun run build
+
+            echo "→ Restart service..."
+            sudo systemctl restart jalawarta
+
+            echo "→ Cek status service..."
+            sudo systemctl is-active jalawarta && echo "✅ Service berjalan" || echo "❌ Service gagal restart"
