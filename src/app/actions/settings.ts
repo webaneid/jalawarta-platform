@@ -7,6 +7,9 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/session";
 
 export async function getTenantSettings(tenantId: string) {
+  const session = await getSession();
+  if (!session || session.tenantId !== tenantId) return null;
+
   const [tenant] = await db
     .select()
     .from(tenants)
@@ -63,6 +66,7 @@ export async function updateTenantSettings(tenantId: string, data: UpdateSetting
     if (pgErr.code === "23505" && pgErr.message?.includes("custom_domain")) {
       return { success: false, error: "Custom domain sudah digunakan oleh pihak lain." };
     }
-    return { success: false, error: pgErr.message ?? "Terjadi kesalahan." };
+    console.error("[updateTenantSettings]", pgErr.message);
+    return { success: false, error: "Gagal menyimpan pengaturan. Silakan coba lagi." };
   }
 }

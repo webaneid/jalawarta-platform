@@ -22,15 +22,21 @@ async function getSession(req: NextRequest) {
   }
 }
 
-async function resolveTenantSlug(hostname: string, req: NextRequest): Promise<string | null> {
+// Base URL untuk internal resolve — WAJIB set APP_INTERNAL_URL di production env
+// agar tidak fallback ke host header yang bisa dimanipulasi attacker (SSRF).
+const INTERNAL_BASE = process.env.APP_INTERNAL_URL ?? "http://localhost:3000";
+
+async function resolveTenantSlug(hostname: string): Promise<string | null> {
   try {
-    const internalBase =
-      process.env.APP_INTERNAL_URL ??
-      `${req.nextUrl.protocol}//${req.headers.get("host")}`;
-    const resolveUrl = new URL("/api/internal/resolve-domain", internalBase);
+    const resolveUrl = new URL("/api/internal/resolve-domain", INTERNAL_BASE);
     resolveUrl.searchParams.set("domain", hostname);
+    const headers: Record<string, string> = {};
+    if (process.env.INTERNAL_API_SECRET) {
+      headers["x-internal-secret"] = process.env.INTERNAL_API_SECRET;
+    }
     const res = await fetch(resolveUrl.toString(), {
       cache: "no-store",
+      headers,
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
@@ -123,7 +129,7 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(apexUrl, 301);
   }
 
-  const slug = await resolveTenantSlug(hostname, req);
+  const slug = await resolveTenantSlug(hostname);
 
   if (!slug) {
     return NextResponse.next();

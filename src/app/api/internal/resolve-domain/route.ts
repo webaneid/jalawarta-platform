@@ -5,7 +5,19 @@ import { NextRequest, NextResponse } from "next/server";
 
 const ROOT = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "jalawarta.com";
 
+// Proteksi endpoint internal: hanya request dari middleware (server-side) yang boleh lewat.
+// Set INTERNAL_API_SECRET di .env — jika tidak di-set, endpoint terbuka (development mode).
+function isAuthorized(req: NextRequest): boolean {
+  const secret = process.env.INTERNAL_API_SECRET;
+  if (!secret) return true; // dev mode: tidak ada secret
+  return req.headers.get("x-internal-secret") === secret;
+}
+
 export async function GET(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   const domain = req.nextUrl.searchParams.get("domain");
   if (!domain) {
     return NextResponse.json({ error: "missing_domain" }, { status: 400 });
@@ -20,7 +32,6 @@ export async function GET(req: NextRequest) {
   let tenant;
 
   if (subdomainSlug) {
-    // Subdomain tenant — langsung match ke kolom subdomain
     tenant = await db.query.tenants.findFirst({
       where: eq(tenants.subdomain, subdomainSlug),
       columns: { id: true, subdomain: true },
