@@ -12,14 +12,14 @@ export async function getTenantSettings(tenantId: string) {
     .from(tenants)
     .where(eq(tenants.id, tenantId))
     .limit(1);
-    
+
   return tenant || null;
 }
 
 export type UpdateSettingsData = {
   siteName?: string | null;
   customDomain?: string | null;
-  schemaConfig?: any;
+  schemaConfig?: Record<string, unknown>;
 };
 
 export async function updateTenantSettings(tenantId: string, data: UpdateSettingsData) {
@@ -30,25 +30,39 @@ export async function updateTenantSettings(tenantId: string, data: UpdateSetting
     }
 
     // Process customDomain: Convert empty string to null to avoid unique constraint issues
-    const finalCustomDomain = data.customDomain && data.customDomain.trim() !== "" 
-      ? data.customDomain.trim() 
+    const finalCustomDomain = data.customDomain && data.customDomain.trim() !== ""
+      ? data.customDomain.trim()
       : null;
 
-    await db
-      .update(tenants)
-      .set({
-        siteName: data.siteName,
-        customDomain: finalCustomDomain,
-        schemaConfig: data.schemaConfig,
-      })
-      .where(eq(tenants.id, tenantId));
+    // Kalau customDomain berubah, reset status ke 'pending' — perlu verifikasi sebelum aktif
+    if ("customDomain" in data) {
+      await db
+        .update(tenants)
+        .set({
+          siteName: data.siteName,
+          schemaConfig: data.schemaConfig,
+          customDomain: finalCustomDomain,
+          customDomainStatus: finalCustomDomain ? "pending" : "none",
+          customDomainVerifiedAt: null,
+        })
+        .where(eq(tenants.id, tenantId));
+    } else {
+      await db
+        .update(tenants)
+        .set({
+          siteName: data.siteName,
+          schemaConfig: data.schemaConfig,
+        })
+        .where(eq(tenants.id, tenantId));
+    }
 
     revalidatePath("/app/settings");
     return { success: true };
-  } catch (err: any) {
-    if (err.code === "23505" && err.message.includes("custom_domain")) {
+  } catch (err: unknown) {
+    const pgErr = err as { code?: string; message?: string };
+    if (pgErr.code === "23505" && pgErr.message?.includes("custom_domain")) {
       return { success: false, error: "Custom domain sudah digunakan oleh pihak lain." };
     }
-    return { success: false, error: err.message };
+    return { success: false, error: pgErr.message ?? "Terjadi kesalahan." };
   }
 }
