@@ -1,34 +1,24 @@
 import { db } from "@/db";
 import { tenants, posts, pages } from "@/db/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ domain: string }> }
 ) {
-  const domain = (await params).domain;
-  const decodedDomain = decodeURIComponent(domain);
-  
-  // 1. Resolve Tenant
-  // Cek apakah domain adalah subdomain (e.g. test.localhost) atau custom domain
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost";
-  const subdomain = decodedDomain.endsWith(`.${rootDomain}`) 
-    ? decodedDomain.replace(`.${rootDomain}`, "") 
-    : null;
+  // [domain] param selalu berisi slug — proxy.ts menjamin rewrite ke /{slug}/...
+  const { domain } = await params;
+  const slug = decodeURIComponent(domain);
 
   const tenant = await db.query.tenants.findFirst({
-    where: or(
-      subdomain ? eq(tenants.subdomain, subdomain) : undefined,
-      eq(tenants.customDomain, decodedDomain)
-    ),
+    where: eq(tenants.subdomain, slug),
   });
 
   if (!tenant) {
     return new NextResponse("Tenant not found", { status: 404 });
   }
 
-  // 2. Fetch Content
   const [allPosts, allPages] = await Promise.all([
     db.query.posts.findMany({
       where: and(eq(posts.tenantId, tenant.id), eq(posts.status, "PUBLISHED")),
@@ -40,9 +30,8 @@ export async function GET(
     }),
   ]);
 
-  const baseUrl = `http://${decodedDomain}`;
+  const baseUrl = req.nextUrl.origin;
 
-  // 3. Generate XML
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
@@ -71,8 +60,6 @@ export async function GET(
 </urlset>`;
 
   return new NextResponse(sitemap, {
-    headers: {
-      "Content-Type": "application/xml",
-    },
+    headers: { "Content-Type": "application/xml" },
   });
 }

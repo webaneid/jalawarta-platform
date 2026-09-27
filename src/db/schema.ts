@@ -106,6 +106,12 @@ export const tenants = pgTable("tenants", {
   ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   subdomain: text("subdomain").unique().notNull(), // missal: namaberita
   customDomain: text("custom_domain").unique(),    // misal: namaberita.com
+  customDomainStatus: text("custom_domain_status")
+    .$type<"none" | "pending" | "active" | "failed">()
+    .default("none").notNull(),
+  customDomainVerifiedAt: timestamp("custom_domain_verified_at", { withTimezone: true }),
+  domainLastCheckAt: timestamp("domain_last_check_at", { withTimezone: true }),
+  domainLastCheckError: text("domain_last_check_error"),
   siteName: text("site_name"),
   themeId: text("theme_id").default("modern-light"),
   analyticsScript: text("analytics_script"),

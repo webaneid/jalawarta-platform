@@ -15,6 +15,7 @@ export default function BlockInserter({ tenantId, onInsert }: BlockInserterProps
     if (isOpen && forms.length === 0) {
       loadForms();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   async function loadForms() {

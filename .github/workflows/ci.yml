@@ -1,0 +1,38 @@
+name: CI
+
+# Jalan di TIAP pull request ke main — masalah ketahuan SEBELUM merge, bukan sesudah.
+# Job "validate" adalah status check yang di-require branch protection main.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      # Secret scan — lapis kedua yang independen dari hook Claude Code.
+      # Hook .claude/hooks/secret-scan.sh hanya aktif saat Claude yang nulis file.
+      # gitleaks-action scan seluruh diff PR, termasuk commit manual dari terminal.
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dependency audit
+        run: bun audit
+        continue-on-error: true   # warning saja, tidak block PR (bisa noisy)
